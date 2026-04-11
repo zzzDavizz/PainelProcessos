@@ -36,6 +36,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   useCallback,
@@ -67,6 +68,7 @@ import {
   valorTotalProcessos,
 } from "@/lib/aggregations";
 import { formatBRL, formatDataUltimaMovimentacaoBR } from "@/lib/format";
+import { exportResumoPlanilhaComoExcel } from "@/lib/exportResumoExcel";
 import { KpiDetailModal } from "@/components/dashboard/KpiDetailModal";
 
 const COLORS = {
@@ -1097,11 +1099,23 @@ export default function DashboardView() {
       </header>
 
       <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
-        <div className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
-          <Sparkles className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
-          <span>
-            {dataSourceLabel || "A carregar…"} · última leitura {timeStr}
-          </span>
+        <div className="mb-6 flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
+            <Sparkles className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
+            <span className="min-w-0">
+              {dataSourceLabel || "A carregar…"} · última leitura {timeStr}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => exportResumoPlanilhaComoExcel(baseProcessos)}
+            disabled={remoteProcessos === undefined}
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700/80 min-[520px]:self-auto"
+            title="Exporta todas as colunas dos dados carregados (espelho do RESUMO), formato de tabela como no detalhe Sem END"
+          >
+            <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            Exportar Excel
+          </button>
         </div>
 
         {/* KPIs globais — barra de título + linha valor | detalhe (cores uniformes) */}
