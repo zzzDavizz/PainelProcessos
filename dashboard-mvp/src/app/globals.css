@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+body {
+  background: #f8fafc;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Tema escuro do painel: só o subtree com data-dashboard-theme (ver tailwind.config). */
+[data-dashboard-theme="dark"] {
+  color-scheme: dark;
+}

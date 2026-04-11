@@ -1,0 +1,7 @@
+# Variáveis de ambiente na raiz do monorepo (nunca versionar segredos)
+.env
+.env.*
+!.env.example
+
+# Dependências na raiz, se existirem
+node_modules/

@@ -1,0 +1,12 @@
+{
+  "name": "dasboard-gerencial-de-processos",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix ./dashboard-mvp",
+    "dev": "npm run dev --prefix ./dashboard-mvp",
+    "build": "npm run build --prefix ./dashboard-mvp",
+    "start": "npm run start --prefix ./dashboard-mvp",
+    "lint": "npm run lint --prefix ./dashboard-mvp",
+    "install:app": "npm install --prefix ./dashboard-mvp"
+  }
+}
