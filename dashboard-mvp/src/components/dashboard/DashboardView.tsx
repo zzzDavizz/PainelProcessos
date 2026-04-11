@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   BarChart3,
   Briefcase,
+  CalendarRange,
   Clock,
+  History,
   Hash,
   Hourglass,
   LayoutDashboard,
@@ -35,18 +37,30 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import type { ProcessoRow } from "@/lib/types";
 import { MOCK_PROCESSOS } from "@/lib/mockData";
 import {
   distribuicaoPorOnde,
   filterByBloco,
+  filterByStartProcessoRange,
+  endProcessoDonut,
   healthDonut,
   kpisGlobais,
   rankingResponsaveis,
   resumoBloco,
   searchRows,
   topAtrasados,
+  topUltimosMovimentados,
+  valorTotalPendentesCriacao,
   valorTotalProcessos,
 } from "@/lib/aggregations";
 import { formatBRL } from "@/lib/format";
@@ -122,9 +136,17 @@ function MiniDonut({
   );
 }
 
-function OndeProcessoBars({ rows, chartDark = false }: { rows: ProcessoRow[]; chartDark?: boolean }) {
+function OndeProcessoBars({
+  rows,
+  chartDark = false,
+  barFill,
+}: {
+  rows: ProcessoRow[];
+  chartDark?: boolean;
+  barFill: string;
+}) {
   const t = chartDark ? barChartTheme.dark : barChartTheme.light;
-  const chartRows = distribuicaoPorOnde(rows, 8);
+  const chartRows = distribuicaoPorOnde(rows, 8, { uniformBarFill: barFill });
   const rankedRows = chartRows.map((row, i) => ({
     ...row,
     rankLabel: `${i + 1}º ${row.name}`,
@@ -132,7 +154,12 @@ function OndeProcessoBars({ rows, chartDark = false }: { rows: ProcessoRow[]; ch
   // Ordem do array = ordem no eixo Y: 1º (maior volume) primeiro → aparece no topo.
   const displayData = rankedRows;
   const barThickness = 44;
-  const chartHeight = Math.max(200, displayData.length * (barThickness + 18) + 72);
+  /** Altura mínima alinha os gráficos entre as 3 colunas mesmo com poucas barras (ex.: PSI). */
+  const chartMinHeightPx = 300;
+  const chartHeight = Math.max(
+    chartMinHeightPx,
+    Math.max(200, displayData.length * (barThickness + 18) + 72),
+  );
   if (chartRows.length === 0) {
     return (
       <div className="space-y-2">
@@ -145,18 +172,16 @@ function OndeProcessoBars({ rows, chartDark = false }: { rows: ProcessoRow[]; ch
     );
   }
   return (
-    <div className="space-y-2">
-      <div>
+    <div className="flex h-full min-h-0 flex-1 flex-col space-y-2">
+      <div className="shrink-0">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <ListOrdered className="h-3.5 w-3.5" />
           Onde está o processo?{" "}
           <span className="font-normal text-slate-400 dark:text-slate-500">(ranking)</span>
         </p>
-        <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-        </p>
       </div>
       <div
-        className="w-full rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-1 pb-3 pt-3 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
+        className="w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-1 pb-3 pt-3 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
         style={{ height: chartHeight }}
       >
         <ResponsiveContainer width="100%" height="100%">
@@ -192,6 +217,7 @@ function OndeProcessoBars({ rows, chartDark = false }: { rows: ProcessoRow[]; ch
                   name: string;
                   v: number;
                   count: number;
+                  pendenteCriacao: number;
                   valorTotal: number;
                   pctValor: number;
                 };
@@ -204,17 +230,28 @@ function OndeProcessoBars({ rows, chartDark = false }: { rows: ProcessoRow[]; ch
                   maximumFractionDigits: 1,
                 });
                 return (
-                  <div className="max-w-[260px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                  <div className="max-w-[280px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
                     <p className="text-sm font-bold text-slate-900 dark:text-white">{d.name}</p>
                     <p className="mt-2 space-y-1.5 text-slate-600 dark:text-slate-300">
                       <span className="block">
-                        <span className="text-slate-500 dark:text-slate-400">Processos:</span>{" "}
+                        <span className="text-slate-500 dark:text-slate-400">Processos criados:</span>{" "}
                         <strong className="text-slate-900 dark:text-white">{d.count}</strong>
                         <span className="text-slate-500 dark:text-slate-400">
                           {" "}
-                          ({pctProcFmt}% do total de processos)
+                          ({pctProcFmt}% do total de processos criados)
                         </span>
                       </span>
+                      {d.pendenteCriacao > 0 ? (
+                        <span className="block text-slate-600 dark:text-slate-300">
+                          <span className="text-slate-500 dark:text-slate-400">Pendente de criação:</span>{" "}
+                          <strong className="text-slate-900 dark:text-white">{d.pendenteCriacao}</strong>
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {" "}
+                            ({d.pendenteCriacao === 1 ? "linha" : "linhas"} com PROCESSO pendente de criação neste
+                            local)
+                          </span>
+                        </span>
+                      ) : null}
                       <span className="block">
                         <span className="text-slate-500 dark:text-slate-400">Valor (coluna VALOR):</span>{" "}
                         <strong className="text-slate-900 dark:text-white">
@@ -269,9 +306,10 @@ function BlocoPanel({
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
   const valorTotalCard = valorTotalProcessos(rows);
+  const valorNaoCriados = valorTotalPendentesCriacao(rows);
   return (
     <article
-      className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/30"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/30"
       style={{ borderTopWidth: 4, borderTopColor: accent }}
     >
       <header
@@ -297,61 +335,85 @@ function BlocoPanel({
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </header>
-      <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 dark:border-slate-700/80">
-        <div>
-          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            <Hash className="h-3.5 w-3.5 shrink-0 opacity-70" />
-            Total
-          </p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{resumo.total}</p>
-          {resumo.pendenteCriacao > 0 ? (
-            <p className="mt-1 text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-400">
-              {resumo.pendenteCriacao} pendente{resumo.pendenteCriacao > 1 ? "s" : ""} de criação
-              <span className="block font-normal text-slate-500 dark:text-slate-500">
-                (não entram neste total)
-              </span>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-100 p-4 dark:border-slate-700/80">
+        {/* Linha 1: mesma altura mínima nos 3 blocos (reserva para pendentes mesmo quando 0) */}
+        <div className="col-span-2 grid min-h-[5.25rem] grid-cols-2 gap-x-3">
+          <div className="flex min-h-0 flex-col">
+            <p className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+              <Hash className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              Total
             </p>
-          ) : null}
+            <p className="text-2xl font-bold tabular-nums leading-none text-slate-900 dark:text-slate-100">
+              {resumo.total}
+            </p>
+            <div className="mt-1 min-h-[2.75rem]">
+              {resumo.pendenteCriacao > 0 ? (
+                <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-300">
+                  {resumo.pendenteCriacao} pendente{resumo.pendenteCriacao > 1 ? "s" : ""} de criação
+                  <span className="block font-normal text-slate-500 dark:text-slate-400">
+                    (não entram neste total)
+                  </span>
+                </p>
+              ) : (
+                <p className="invisible text-[10px] leading-tight" aria-hidden="true">
+                  0 pendente de criação
+                  <span className="block">(não entram neste total)</span>
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-col">
+            <p className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              Críticos
+            </p>
+            <p className="text-2xl font-bold tabular-nums leading-none text-slate-900 dark:text-slate-100">
+              {resumo.pctCriticos}%
+            </p>
+            <div className="mt-1 min-h-[2.75rem]" aria-hidden="true" />
+          </div>
         </div>
-        <div>
-          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 opacity-70" />
-            Críticos
-          </p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{resumo.pctCriticos}%</p>
-        </div>
-        <div>
-          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <div className="flex flex-col">
+          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
             <Hourglass className="h-3.5 w-3.5 shrink-0 opacity-70" />
             Standby
           </p>
-          <p className="text-xl font-semibold text-amber-600 dark:text-amber-400">
+          <p className="text-xl font-semibold tabular-nums leading-none text-slate-900 dark:text-slate-100">
             {resumo.standbyMedio}d
           </p>
         </div>
-        <div>
-          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <div className="flex flex-col">
+          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
             <Clock className="h-3.5 w-3.5 shrink-0 opacity-70" />
             Em curso
           </p>
-          <p className="text-xl font-semibold text-emerald-600 dark:text-emerald-400">
+          <p className="text-xl font-semibold tabular-nums leading-none text-slate-900 dark:text-slate-100">
             {resumo.diasEmCursoMedio}d
           </p>
         </div>
         <div className="col-span-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/60">
-          <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
             <Wallet className="h-3.5 w-3.5 shrink-0" />
             Valor total (soma da coluna VALOR neste bloco)
           </p>
-          <p className="text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-white sm:text-xl">
+          <p className="text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">
             {formatBRL(valorTotalCard)}
+          </p>
+          <p className="mt-2 border-t border-slate-200/90 pt-2 text-[10px] leading-snug text-slate-600 dark:border-slate-600/70 dark:text-slate-400">
+            <span className="font-medium text-slate-700 dark:text-slate-300">
+              Valor acumulado em processos não criados:
+            </span>{" "}
+            <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+              {formatBRL(valorNaoCriados)}
+            </span>{" "}
+            <span className="text-slate-500 dark:text-slate-500">(do montante acima)</span>
           </p>
         </div>
       </div>
-      <div className="border-b border-slate-100 p-4 dark:border-slate-700/80">
-        <OndeProcessoBars rows={rows} chartDark={chartDark} />
+      <div className="flex min-h-0 flex-1 flex-col border-b border-slate-100 p-4 dark:border-slate-700/80">
+        <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} />
       </div>
-      <div className="p-4">
+      <div className="shrink-0 p-4">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <PieChart className="h-3.5 w-3.5" />
           Alertas críticos
@@ -377,33 +439,106 @@ function BlocoPanel({
   );
 }
 
-function TopAtrasadosCard({ rows }: { rows: ProcessoRow[] }) {
-  const top = topAtrasados(rows, 3);
+function processoListRow(r: ProcessoRow) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+    <li
+      key={r.processo + r.item}
+      className="flex flex-col gap-1 text-xs sm:flex-row sm:items-start sm:justify-between sm:gap-2"
+    >
+      <span className="min-w-0 break-words font-medium text-slate-800 sm:flex-1 dark:text-slate-200">
+        {r.processo}
+      </span>
+      <span className="flex shrink-0 items-center justify-end gap-1 sm:pt-0.5">
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{
+            background:
+              r.alerta === "CRÍTICO" ? "#dc2626" : r.alerta === "ATENÇÃO" ? "#eab308" : "#22c55e",
+          }}
+        />
+        <strong className="tabular-nums text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
+      </span>
+    </li>
+  );
+}
+
+function TopAtrasadosCard({ rows }: { rows: ProcessoRow[] }) {
+  const top = topAtrasados(rows, 5);
+  return (
+    <div className="w-full min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
       <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         <Clock className="h-3.5 w-3.5" />
         Top atrasados
       </p>
-      <ul className="space-y-2">
-        {top.map((r) => (
-          <li
-            key={r.processo + r.item}
-            className="flex items-center justify-between gap-2 text-xs"
-          >
-            <span className="truncate font-medium text-slate-800 dark:text-slate-200">{r.processo}</span>
-            <span className="flex shrink-0 items-center gap-1">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{
-                  background: r.alerta === "CRÍTICO" ? "#dc2626" : "#eab308",
-                }}
-              />
-              <strong className="text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <ul className="space-y-2">{top.map((r) => processoListRow(r))}</ul>
+    </div>
+  );
+}
+
+function ultimosMovimentadosListRow(r: ProcessoRow) {
+  const resp = r.responsavel?.trim() || "—";
+  const dataUlt = r.ultimaMovimentacao?.trim() || "—";
+  return (
+    <li
+      key={`${r.processo}-${r.item}-ultimos`}
+      className="border-b border-slate-200/70 py-1.5 text-[10px] last:border-b-0 last:pb-0 dark:border-slate-600/50 sm:py-1"
+    >
+      {/* Ordem: processo · dias em curso · responsável · data última movimentação */}
+      <div className="grid w-full max-w-none grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] sm:items-center sm:gap-x-2 sm:gap-y-0">
+        <span className="min-w-0 break-words font-medium leading-snug text-slate-800 dark:text-slate-200">
+          {r.processo}
+        </span>
+        <span className="flex shrink-0 items-center gap-0.5 sm:justify-center">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2"
+            style={{
+              background:
+                r.alerta === "CRÍTICO" ? "#dc2626" : r.alerta === "ATENÇÃO" ? "#eab308" : "#22c55e",
+            }}
+          />
+          <strong className="tabular-nums text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
+        </span>
+        <span
+          className="min-w-0 truncate leading-snug text-slate-600 dark:text-slate-400 sm:text-left"
+          title={resp !== "—" ? resp : undefined}
+        >
+          {resp}
+        </span>
+        <span
+          className="min-w-0 whitespace-normal break-words font-medium tabular-nums leading-snug text-slate-700 dark:text-slate-300 sm:text-left"
+          title={dataUlt !== "—" ? dataUlt : undefined}
+        >
+          {dataUlt}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
+  const top = topUltimosMovimentados(rows, 5);
+  return (
+    <div className="w-full min-w-0 max-w-none self-stretch rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-700 dark:bg-slate-800/50 sm:p-3">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <History className="h-3 w-3 shrink-0" />
+        Últimos movimentados
+      </p>
+      <div
+        className="mb-1 hidden w-full grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] gap-x-2 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-400 dark:text-slate-500 sm:grid"
+        aria-hidden
+      >
+        <span className="min-w-0">Processo</span>
+        <span className="flex flex-col items-center justify-center gap-0 text-center">
+          <span>Dias</span>
+          <span>em curso</span>
+        </span>
+        <span className="min-w-0">Responsável</span>
+        <span className="min-w-0 text-left">
+          <span className="block">Data últ.</span>
+          <span className="block">movimentação</span>
+        </span>
+      </div>
+      <ul className="w-full min-w-0">{top.map((r) => ultimosMovimentadosListRow(r))}</ul>
     </div>
   );
 }
@@ -498,6 +633,9 @@ type RefreshVisual = "idle" | "loading" | "success" | "error";
 
 export default function DashboardView() {
   const [search, setSearch] = useState("");
+  /** Intervalo (ISO `YYYY-MM-DD`) na coluna START PROCESSO; vazio = sem filtro nesse limite. */
+  const [startProcessoDe, setStartProcessoDe] = useState("");
+  const [startProcessoAte, setStartProcessoAte] = useState("");
   const [lastUpdate, setLastUpdate] = useState(() => new Date());
   const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd">(null);
   /** null = ainda não leu localStorage (evita gravar "light" antes da preferência real). */
@@ -575,7 +713,10 @@ export default function DashboardView() {
 
   const baseProcessos = remoteProcessos === undefined ? MOCK_PROCESSOS : (remoteProcessos ?? MOCK_PROCESSOS);
 
-  const filtered = useMemo(() => searchRows(baseProcessos, search), [baseProcessos, search]);
+  const filtered = useMemo(
+    () => filterByStartProcessoRange(searchRows(baseProcessos, search), startProcessoDe, startProcessoAte),
+    [baseProcessos, search, startProcessoDe, startProcessoAte],
+  );
 
   const pilaresRows = useMemo(() => filterByBloco(filtered, "PILARES"), [filtered]);
   const psiRows = useMemo(() => filterByBloco(filtered, "PSI"), [filtered]);
@@ -601,45 +742,54 @@ export default function DashboardView() {
             kpis.pendenteCriacao > 0
               ? `${kpis.pendenteCriacao} pendente${kpis.pendenteCriacao > 1 ? "s" : ""} de criação`
               : "Nenhum pendente de criação",
-          subClass:
-            kpis.pendenteCriacao > 0
-              ? "text-amber-700 dark:text-amber-400"
-              : "text-slate-500 dark:text-slate-400",
           modal: null as null,
         },
         {
           label: "Alertas críticos",
           value: String(kpis.criticosTotal),
-          sub: [
-            `${kpis.pctCriticos}% dos processos criados`,
-            kpis.criticosSemProcessoCriado > 0
-              ? `${kpis.criticosSemProcessoCriado} crítico${kpis.criticosSemProcessoCriado > 1 ? "s" : ""} sem processo criado`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-          subClass: "text-red-600 dark:text-red-400",
+          sub: (
+            <div className="flex w-full flex-col items-end gap-1.5 text-right normal-case">
+              <div className="min-w-0">
+                <p className="text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">
+                  % do total criado:
+                </p>
+                <p className="text-[11px] font-semibold leading-tight tabular-nums text-slate-700 dark:text-slate-200">
+                  {kpis.totalProcessos > 0
+                    ? `${kpis.pctCriticos}% (${kpis.criticosTotal}/${kpis.totalProcessos})`
+                    : "—"}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">
+                  Críticos sem processo criado:
+                </p>
+                <p className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-200">
+                  {kpis.criticosSemProcessoCriado}
+                </p>
+              </div>
+            </div>
+          ),
           modal: "alertas" as const,
         },
         {
           label: "Standby médio",
           value: `${kpis.standbyMedio}d`,
           sub: "média",
-          subClass: "text-emerald-600 dark:text-emerald-400",
           modal: null as null,
         },
         {
-          label: "Tempo em curso",
+          label: "Tempo médio em curso",
           value: `${kpis.diasEmCursoMedio}d`,
           sub: "média",
-          subClass: "text-slate-500 dark:text-slate-400",
           modal: null as null,
         },
         {
           label: "Sem end",
           value: String(kpis.semEnd),
-          sub: "sem data fim",
-          subClass: "text-red-600 dark:text-red-400",
+          sub:
+            kpis.comDataFim > 0
+              ? `${kpis.comDataFim} ${kpis.comDataFim === 1 ? "já possui" : "já possuem"} data de fim`
+              : "Nenhum com data de fim",
           modal: "semEnd" as const,
         },
       ] as const,
@@ -668,6 +818,18 @@ export default function DashboardView() {
       refreshResetTimeoutRef.current = null;
     }, ok ? 2200 : 2600);
   }, [loadProcessos]);
+
+  const onStartProcessoDeChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setStartProcessoDe(v);
+    if (v) setStartProcessoAte((at) => (at && v > at ? v : at));
+  };
+
+  const onStartProcessoAteChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setStartProcessoAte(v);
+    if (v) setStartProcessoDe((de) => (de && v < de ? v : de));
+  };
 
   const timeStr = lastUpdate.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -719,7 +881,8 @@ export default function DashboardView() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:w-auto lg:max-w-[min(100%,42rem)]">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
               <input
@@ -789,6 +952,53 @@ export default function DashboardView() {
             >
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
+            </div>
+            <div
+              className="flex flex-wrap items-end gap-x-3 gap-y-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 dark:border-white/15 dark:bg-white/[0.06]"
+              role="group"
+              aria-label="Filtro por data de início do processo (START PROCESSO)"
+            >
+              <div className="flex items-center gap-2 text-white">
+                <CalendarRange className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-100/95 dark:text-slate-300">
+                  Start processo
+                </span>
+              </div>
+              <label className="flex flex-col gap-0.5 text-[10px] font-medium text-blue-100/90 dark:text-slate-400">
+                De
+                <input
+                  type="date"
+                  value={startProcessoDe}
+                  onChange={onStartProcessoDeChange}
+                  max={startProcessoAte || undefined}
+                  className="rounded-lg border border-white/25 bg-white/95 px-2 py-1.5 text-xs text-slate-900 shadow-sm outline-none ring-white/30 focus:ring-2 dark:border-white/20 dark:bg-slate-900 dark:text-slate-100 dark:ring-cyan-500/40"
+                  aria-label="Data inicial START PROCESSO"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[10px] font-medium text-blue-100/90 dark:text-slate-400">
+                Até
+                <input
+                  type="date"
+                  value={startProcessoAte}
+                  onChange={onStartProcessoAteChange}
+                  min={startProcessoDe || undefined}
+                  className="rounded-lg border border-white/25 bg-white/95 px-2 py-1.5 text-xs text-slate-900 shadow-sm outline-none ring-white/30 focus:ring-2 dark:border-white/20 dark:bg-slate-900 dark:text-slate-100 dark:ring-cyan-500/40"
+                  aria-label="Data final START PROCESSO"
+                />
+              </label>
+              {(startProcessoDe || startProcessoAte) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartProcessoDe("");
+                    setStartProcessoAte("");
+                  }}
+                  className="ml-auto rounded-lg border border-white/30 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/20 dark:border-white/25 dark:hover:bg-white/15"
+                >
+                  Limpar datas
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -801,31 +1011,45 @@ export default function DashboardView() {
           </span>
         </div>
 
-        {/* KPIs globais */}
-        <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {/* KPIs globais — barra de título + linha valor | detalhe (cores uniformes) */}
+        <section className="mb-6 grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 sm:gap-3 lg:grid-cols-5">
           {kpiCards.map((k, i) => {
             const { Icon } = kpiIconMap[i];
+            const detail = (
+              <div className="flex min-h-[2.5rem] min-w-0 max-w-[48%] shrink-0 flex-col justify-center pl-2 text-right text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300">
+                {k.sub}
+              </div>
+            );
             const body = (
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300">
-                  <Icon className="h-5 w-5" aria-hidden />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <div className="flex flex-col">
+                <div className="border-b border-slate-200/60 bg-slate-100/65 px-2.5 py-1 dark:border-slate-600/50 dark:bg-slate-800/45">
+                  <p
+                    className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300"
+                    title={`${k.label}${k.modal ? " (detalhar)" : ""}`}
+                  >
                     {k.label}
                     {k.modal ? (
-                      <span className="ml-1 font-normal normal-case text-slate-400 dark:text-slate-500">
+                      <span className="ml-1 font-normal normal-case text-slate-500 opacity-90 dark:text-slate-400">
                         (detalhar)
                       </span>
                     ) : null}
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{k.value}</p>
-                  <p className={`mt-0.5 text-xs font-medium ${k.subClass}`}>{k.sub}</p>
+                </div>
+                <div className="flex min-h-[3.75rem] items-center justify-between gap-2 px-2.5 py-2 sm:gap-3 sm:px-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-slate-50/90 text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:shadow-slate-950/40">
+                      <Icon className="h-4 w-4" aria-hidden />
+                    </span>
+                    <p className="min-w-0 truncate text-xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-2xl dark:text-white">
+                      {k.value}
+                    </p>
+                  </div>
+                  {detail}
                 </div>
               </div>
             );
             const cardClass =
-              "rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/20";
+              "overflow-hidden rounded-xl border border-slate-200/90 bg-white text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
             if (k.modal) {
               return (
                 <button
@@ -864,8 +1088,8 @@ export default function DashboardView() {
           psi={psiSemEnd}
         />
 
-        {/* Três colunas PILARES | PSI | CONSOLIDADO */}
-        <section className="mb-8 grid gap-4 lg:grid-cols-3">
+        {/* Três colunas PILARES | PSI | CONSOLIDADO — mesma altura para alinhar gráficos */}
+        <section className="mb-8 grid gap-4 lg:grid-cols-3 lg:items-stretch">
           <BlocoPanel
             title="PILARES"
             accent={COLORS.pilares}
@@ -906,6 +1130,7 @@ export default function DashboardView() {
                 : label === "PSI"
                   ? COLORS.psi
                   : COLORS.consolidado;
+            const endDonut = endProcessoDonut(rows);
             return (
               <div
                 key={label}
@@ -920,30 +1145,39 @@ export default function DashboardView() {
                   </span>
                   {label}
                 </p>
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <div className="flex-1">
-                    <MiniDonut data={healthDonut(rows)} chartDark={darkMode === true} />
-                    <ul className="mt-2 space-y-1 text-[11px]">
-                      {healthDonut(rows).map((d) => (
-                        <li
-                          key={d.name}
-                          className="flex justify-between text-slate-600 dark:text-white"
-                        >
-                          <span className="flex items-center gap-1">
-                            <span
-                              className="h-1.5 w-1.5 rounded-full"
-                              style={{ background: d.color }}
-                            />
-                            {d.name}
-                          </span>
-                          <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
-                        </li>
-                      ))}
-                    </ul>
+                <div className="flex w-full min-w-0 flex-col gap-4">
+                  {/* Linha 1: donut END + top atrasados lado a lado */}
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                    <div className="min-w-0 shrink-0 sm:w-[26%] sm:min-w-[140px] sm:max-w-[200px]">
+                      <p className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                        END processo
+                      </p>
+                      <MiniDonut data={endDonut} chartDark={darkMode === true} />
+                      <ul className="mt-2 space-y-1 text-[11px]">
+                        {endDonut.map((d) => (
+                          <li
+                            key={d.name}
+                            className="flex justify-between text-slate-600 dark:text-white"
+                          >
+                            <span className="flex items-center gap-1">
+                              <span
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{ background: d.color }}
+                              />
+                              {d.name}
+                            </span>
+                            <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+                      <TopAtrasadosCard rows={rows} />
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <TopAtrasadosCard rows={rows} />
-                  </div>
+                  {/* Linha 2: tabela em largura total (preenche a faixa ao lado do donut) */}
+                  <UltimosMovimentadosCard rows={rows} />
                 </div>
               </div>
             );
