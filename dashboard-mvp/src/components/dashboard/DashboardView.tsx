@@ -1114,10 +1114,10 @@ export default function DashboardView() {
               </div>
             );
             const body = (
-              <div className="flex flex-col">
-                <div className="border-b border-slate-200/60 bg-slate-100/65 px-2.5 py-1 dark:border-slate-600/50 dark:bg-slate-800/45">
+              <div className="flex w-full flex-col">
+                <div className="border-b border-slate-200/60 bg-slate-100/65 dark:border-slate-600/50 dark:bg-slate-800/45">
                   <p
-                    className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300"
+                    className="truncate whitespace-nowrap px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300"
                     title={`${k.label}${k.modal ? " (detalhar)" : ""}`}
                   >
                     {k.label}
@@ -1142,14 +1142,14 @@ export default function DashboardView() {
               </div>
             );
             const cardClass =
-              "overflow-hidden rounded-xl border border-slate-200/90 bg-white text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
+              "overflow-hidden rounded-xl border border-slate-200/90 bg-white p-0 text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
             if (k.modal) {
               return (
                 <button
                   key={k.label}
                   type="button"
                   onClick={() => setKpiModal(k.modal)}
-                  className={`${cardClass} cursor-pointer transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
+                  className={`${cardClass} m-0 cursor-pointer transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
                   title="Clique para ver a lista de processos"
                 >
                   {body}
