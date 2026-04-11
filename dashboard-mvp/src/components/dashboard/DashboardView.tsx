@@ -55,7 +55,10 @@ import {
   endProcessoDonut,
   healthDonut,
   kpisGlobais,
-  rankingResponsaveis,
+  type RankingMelhorPerformanceItem,
+  type RankingPiorPerformanceItem,
+  rankingMelhorPerformanceComEnd,
+  rankingPiorPerformanceSemEnd,
   resumoBloco,
   searchRows,
   topAtrasados,
@@ -544,79 +547,166 @@ function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
   );
 }
 
-function PerformanceCard({
-  title,
-  variant,
-  list,
-}: {
-  title: string;
-  variant: "worst" | "best";
-  list: ReturnType<typeof rankingResponsaveis>;
-}) {
+type PerformanceMetricCardProps =
+  | { variant: "worst"; title: string; list: RankingPiorPerformanceItem[] }
+  | { variant: "best"; title: string; list: RankingMelhorPerformanceItem[] };
+
+function PerformanceMetricCard(props: PerformanceMetricCardProps) {
+  const { variant, title, list } = props;
   const top3 = list.slice(0, 3);
   const rest = list.slice(3, 6);
   const bar = variant === "worst" ? "bg-red-500" : "bg-emerald-500";
   const text =
     variant === "worst" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400";
 
+  const refWorst = variant === "worst" && list.length > 0 ? Math.max(1, list[0].maxDiasEmCurso) : 1;
+  const refBest = variant === "best" && list.length > 0 ? Math.max(1, list[0].valorComEnd) : 1;
+
+  if (list.length === 0) {
+    return (
+      <article className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-6 text-center dark:border-slate-600 dark:bg-slate-800/40">
+        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+          {variant === "worst"
+            ? "Sem processos sem END com responsável atribuído neste bloco."
+            : "Sem processos com END com responsável atribuído neste bloco."}
+        </p>
+      </article>
+    );
+  }
+
   return (
-    <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-md shadow-slate-200/30 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/25">
-      <header className="mb-4 flex items-center gap-2">
+    <article className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80">
+      <header className="mb-3 flex items-center gap-2">
         {variant === "worst" ? (
-          <TrendingDown className="h-5 w-5 text-red-500 dark:text-red-400" />
+          <TrendingDown className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
         ) : (
-          <TrendingUp className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+          <TrendingUp className="h-4 w-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
         )}
-        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</h3>
+        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100">{title}</h3>
       </header>
-      <p className="mb-2 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Top 3
       </p>
-      <ul className="mb-4 space-y-3">
-        {top3.map((r, i) => (
-          <li key={r.nome} className="flex items-center gap-3">
-            <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                variant === "worst" ? "bg-red-500" : "bg-emerald-500"
-              }`}
-            >
-              {i + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{r.nome}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {r.processos} proc. · méd. {r.avgDias}d
-              </p>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                <div
-                  className={`h-full rounded-full ${bar}`}
-                  style={{ width: `${r.score}%` }}
-                />
-              </div>
-            </div>
-            <span className={`text-xl font-bold ${text}`}>{r.score}</span>
-          </li>
-        ))}
+      <ul className="mb-3 space-y-2.5">
+        {variant === "worst"
+          ? (top3 as RankingPiorPerformanceItem[]).map((r, i) => (
+              <li key={r.nome} className="flex items-center gap-2">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
+                  <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                    {r.processosSemEnd} proc. sem END · soma {r.somaDiasSemEnd}d
+                  </p>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className={`h-full rounded-full ${bar}`}
+                      style={{ width: `${(r.maxDiasEmCurso / refWorst) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <span className={`shrink-0 text-base font-bold tabular-nums ${text}`}>{r.maxDiasEmCurso}d</span>
+              </li>
+            ))
+          : (top3 as RankingMelhorPerformanceItem[]).map((r, i) => (
+              <li key={r.nome} className="flex items-center gap-2">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
+                  <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                    {r.processosComEnd} proc. com END
+                  </p>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className={`h-full rounded-full ${bar}`}
+                      style={{ width: `${(r.valorComEnd / refBest) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <span
+                  className={`max-w-[min(40%,7.5rem)] shrink-0 truncate text-right text-[11px] font-bold leading-tight ${text}`}
+                  title={formatBRL(r.valorComEnd)}
+                >
+                  {formatBRL(r.valorComEnd)}
+                </span>
+              </li>
+            ))}
       </ul>
-      <p className="mb-2 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Continuidade do ranking
       </p>
-      <ul className="mb-3 space-y-2 text-xs">
-        {rest.map((r, i) => (
-          <li key={r.nome} className="flex items-center justify-between">
-            <span className="font-medium text-slate-700 dark:text-slate-300">
-              {i + 4}. {r.nome}
-            </span>
-            <span className={text}>{r.score} pts</span>
-          </li>
-        ))}
+      <ul className="mb-2 space-y-1.5 text-[10px]">
+        {variant === "worst"
+          ? (rest as RankingPiorPerformanceItem[]).map((r, i) => (
+              <li key={r.nome} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
+                  {i + 4}. {r.nome}
+                </span>
+                <span className={`shrink-0 tabular-nums ${text}`}>
+                  {r.maxDiasEmCurso}d · {r.processosSemEnd} s/ END
+                </span>
+              </li>
+            ))
+          : (rest as RankingMelhorPerformanceItem[]).map((r, i) => (
+              <li key={r.nome} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
+                  {i + 4}. {r.nome}
+                </span>
+                <span className={`max-w-[55%] shrink-0 truncate text-right ${text}`} title={formatBRL(r.valorComEnd)}>
+                  {formatBRL(r.valorComEnd)}
+                </span>
+              </li>
+            ))}
       </ul>
       <button
         type="button"
-        className="text-xs font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+        className="text-[10px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
       >
         Ver ranking completo
       </button>
+    </article>
+  );
+}
+
+function PerformanceBlocoSection({
+  blocoLabel,
+  blocoAccent,
+  Icon,
+  worstList,
+  bestList,
+}: {
+  blocoLabel: string;
+  blocoAccent: string;
+  Icon: LucideIcon;
+  worstList: RankingPiorPerformanceItem[];
+  bestList: RankingMelhorPerformanceItem[];
+}) {
+  return (
+    <article
+      className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/25 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/25"
+      style={{ borderTopWidth: 4, borderTopColor: blocoAccent }}
+    >
+      <header
+        className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-700/80 dark:bg-white/[0.03]"
+        style={{ background: `${blocoAccent}12` }}
+      >
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 shadow-sm dark:border-slate-600 dark:bg-slate-800/90"
+          style={{ color: blocoAccent }}
+        >
+          <Icon className="h-5 w-5" aria-hidden />
+        </span>
+        <h2 className="text-sm font-bold tracking-wide text-slate-800 dark:text-slate-100">
+          Performance — {blocoLabel}
+        </h2>
+      </header>
+      <div className="grid gap-4 p-4 md:grid-cols-2">
+        <PerformanceMetricCard variant="worst" title="Pior performance" list={worstList} />
+        <PerformanceMetricCard variant="best" title="Melhor performance" list={bestList} />
+      </div>
     </article>
   );
 }
@@ -725,8 +815,10 @@ export default function DashboardView() {
 
   const kpis = useMemo(() => kpisGlobais(allForKpi), [allForKpi]);
 
-  const worst = useMemo(() => rankingResponsaveis(filtered, "worst"), [filtered]);
-  const best = useMemo(() => rankingResponsaveis(filtered, "best"), [filtered]);
+  const worstPilares = useMemo(() => rankingPiorPerformanceSemEnd(pilaresRows), [pilaresRows]);
+  const bestPilares = useMemo(() => rankingMelhorPerformanceComEnd(pilaresRows), [pilaresRows]);
+  const worstPsi = useMemo(() => rankingPiorPerformanceSemEnd(psiRows), [psiRows]);
+  const bestPsi = useMemo(() => rankingMelhorPerformanceComEnd(psiRows), [psiRows]);
 
   const alertasRows = useMemo(
     () => allForKpi.filter((r) => r.alerta === "CRÍTICO" || r.alerta === "ATENÇÃO"),
@@ -1185,10 +1277,22 @@ export default function DashboardView() {
           })}
         </section>
 
-        {/* Performance */}
-        <section className="mb-10 grid gap-4 md:grid-cols-2">
-          <PerformanceCard title="Pior performance" variant="worst" list={worst} />
-          <PerformanceCard title="Melhor performance" variant="best" list={best} />
+        {/* Performance por bloco: cada card agrupa pior + melhor (PILARES e PSI) */}
+        <section className="mb-10 grid gap-6 lg:grid-cols-2">
+          <PerformanceBlocoSection
+            blocoLabel="PILARES"
+            blocoAccent={COLORS.pilares}
+            Icon={Layers}
+            worstList={worstPilares}
+            bestList={bestPilares}
+          />
+          <PerformanceBlocoSection
+            blocoLabel="PSI"
+            blocoAccent={COLORS.psi}
+            Icon={Briefcase}
+            worstList={worstPsi}
+            bestList={bestPsi}
+          />
         </section>
 
         <footer className="flex flex-col gap-2 border-t border-slate-200 pt-6 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">

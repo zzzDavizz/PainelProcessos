@@ -337,6 +337,90 @@ export function rankingResponsaveis(
   return list;
 }
 
+/** Processo criado (nº oficial) sem data em END PROCESSO. */
+function isProcessoOficialSemEnd(r: ProcessoRow): boolean {
+  if (isPendenteCriacaoProcesso(r)) return false;
+  return !(r.endProcesso ?? "").trim();
+}
+
+/** Processo criado com END PROCESSO preenchido. */
+function isProcessoOficialComEnd(r: ProcessoRow): boolean {
+  if (isPendenteCriacaoProcesso(r)) return false;
+  return !!(r.endProcesso ?? "").trim();
+}
+
+export interface RankingPiorPerformanceItem {
+  nome: string;
+  /** Quantidade de processos oficiais sem END. */
+  processosSemEnd: number;
+  /** Maior `diasEmCurso` entre esses processos (0 se nenhum tiver dias). */
+  maxDiasEmCurso: number;
+  /** Soma dos dias em curso (só linhas com número). */
+  somaDiasSemEnd: number;
+}
+
+/**
+ * Pior performance: responsáveis com processos **sem END**;
+ * ordenação por maior pico de dias em curso, depois quantidade sem END, depois soma dos dias.
+ */
+export function rankingPiorPerformanceSemEnd(rows: ProcessoRow[]): RankingPiorPerformanceItem[] {
+  const map = new Map<string, ProcessoRow[]>();
+  for (const r of rows) {
+    const nome = (r.responsavel || "").trim();
+    if (!nome || !isProcessoOficialSemEnd(r)) continue;
+    if (!map.has(nome)) map.set(nome, []);
+    map.get(nome)!.push(r);
+  }
+  const list: RankingPiorPerformanceItem[] = [...map.entries()].map(([nome, rs]) => {
+    const diasVals = rs.map((x) => x.diasEmCurso).filter((n): n is number => n != null);
+    const maxDiasEmCurso = diasVals.length > 0 ? Math.max(...diasVals) : 0;
+    const somaDiasSemEnd = diasVals.reduce((a, b) => a + b, 0);
+    return {
+      nome,
+      processosSemEnd: rs.length,
+      maxDiasEmCurso,
+      somaDiasSemEnd,
+    };
+  });
+  list.sort((a, b) => {
+    if (b.maxDiasEmCurso !== a.maxDiasEmCurso) return b.maxDiasEmCurso - a.maxDiasEmCurso;
+    if (b.processosSemEnd !== a.processosSemEnd) return b.processosSemEnd - a.processosSemEnd;
+    return b.somaDiasSemEnd - a.somaDiasSemEnd;
+  });
+  return list;
+}
+
+export interface RankingMelhorPerformanceItem {
+  nome: string;
+  /** Soma da coluna VALOR em processos oficiais **com** END. */
+  valorComEnd: number;
+  processosComEnd: number;
+}
+
+/**
+ * Melhor performance: responsáveis com processos **com END**;
+ * ordenação por maior soma de VALOR, depois quantidade de processos com END.
+ */
+export function rankingMelhorPerformanceComEnd(rows: ProcessoRow[]): RankingMelhorPerformanceItem[] {
+  const map = new Map<string, ProcessoRow[]>();
+  for (const r of rows) {
+    const nome = (r.responsavel || "").trim();
+    if (!nome || !isProcessoOficialComEnd(r)) continue;
+    if (!map.has(nome)) map.set(nome, []);
+    map.get(nome)!.push(r);
+  }
+  const list: RankingMelhorPerformanceItem[] = [...map.entries()].map(([nome, rs]) => ({
+    nome,
+    valorComEnd: rs.reduce((s, x) => s + (x.valor ?? 0), 0),
+    processosComEnd: rs.length,
+  }));
+  list.sort((a, b) => {
+    if (b.valorComEnd !== a.valorComEnd) return b.valorComEnd - a.valorComEnd;
+    return b.processosComEnd - a.processosComEnd;
+  });
+  return list;
+}
+
 export function topAtrasados(rows: ProcessoRow[], n = 5): ProcessoRow[] {
   return [...rows]
     .filter((r) => r.diasEmCurso != null)
