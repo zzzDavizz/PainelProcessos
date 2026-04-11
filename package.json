@@ -5,8 +5,14 @@
     "postinstall": "npm install --prefix ./dashboard-mvp",
     "dev": "npm run dev --prefix ./dashboard-mvp",
     "build": "npm run build --prefix ./dashboard-mvp",
+    "postbuild": "node ./scripts/vercel-monorepo-sync.mjs",
     "start": "npm run start --prefix ./dashboard-mvp",
     "lint": "npm run lint --prefix ./dashboard-mvp",
     "install:app": "npm install --prefix ./dashboard-mvp"
+  },
+  "dependencies": {
+    "next": "16.2.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   }
 }
