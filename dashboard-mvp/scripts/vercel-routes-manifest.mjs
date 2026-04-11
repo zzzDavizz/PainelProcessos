@@ -1,6 +1,6 @@
 /**
+ * Legado: o build corre `vercel-next-build-with-manifest.mjs` (manifest precisa de existir *durante* o `next build`).
  * Next.js 16.2.x (webpack) não gera `routes-manifest-deterministic.json`; a Vercel faz `lstat` a esse ficheiro.
- * Garante cópia a partir de `routes-manifest.json` em todos os `.next` relevantes (cwd, app, paths Vercel).
  * @see https://github.com/vercel/next.js/discussions/91609
  */
 import fs from "fs";
