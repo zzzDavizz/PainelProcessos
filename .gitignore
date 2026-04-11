@@ -6,5 +6,6 @@
 # Dependências na raiz, se existirem
 node_modules/
 
-# Cópia de `.next` na raiz só no deploy Vercel (scripts/vercel-monorepo-sync.mjs)
+# Cópia de `.next` e `public` na raiz só no deploy Vercel (scripts/vercel-monorepo-sync.mjs)
 /.next/
+/public/
