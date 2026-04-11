@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
-    "postbuild": "node ./scripts/vercel-routes-manifest.mjs",
+    "build": "next build --webpack && node ./scripts/vercel-routes-manifest.mjs",
     "start": "next start",
     "lint": "eslint"
   },
