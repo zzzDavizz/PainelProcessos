@@ -191,6 +191,59 @@ export function healthDonut(rows: ProcessoRow[]): HealthSlice[] {
   ];
 }
 
+/** Classifica texto da coluna ALOCAÇÃO FOCAL (planilha). */
+function classificarAlocacaoFocal(raw: string | null): "Interno" | "Externo" | "Não informado" | "Outros" {
+  const t = (raw ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (!t || t === "-" || t === "—") return "Não informado";
+  if (t.includes("interno")) return "Interno";
+  if (t.includes("externo")) return "Externo";
+  return "Outros";
+}
+
+/**
+ * Distribuição da **ALOCAÇÃO FOCAL** entre processos com número oficial (exclui "Pendente Criação").
+ * Percentagens sobre esse total.
+ */
+export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
+  const t = criados.length;
+  if (t === 0) {
+    return [{ name: "Sem dados", value: 100, color: "#94a3b8" }];
+  }
+  let interno = 0;
+  let externo = 0;
+  let naoInfo = 0;
+  let outros = 0;
+  for (const r of criados) {
+    const b = classificarAlocacaoFocal(r.alocacaoFocal);
+    if (b === "Interno") interno++;
+    else if (b === "Externo") externo++;
+    else if (b === "Não informado") naoInfo++;
+    else outros++;
+  }
+  const slices: HealthSlice[] = [
+    { name: "Interno", value: pct(interno, t), color: "#2563eb" },
+    { name: "Externo", value: pct(externo, t), color: "#ea580c" },
+    { name: "Não informado", value: pct(naoInfo, t), color: "#94a3b8" },
+  ];
+  if (outros > 0) {
+    slices.push({ name: "Outros", value: pct(outros, t), color: "#7c3aed" });
+  }
+  return slices;
+}
+
+export type AlocacaoFocalFiltro = "todos" | "Interno" | "Externo";
+
+/** Filtra linhas pela classificação da coluna ALOCAÇÃO FOCAL (interno / externo). */
+export function filterByAlocacaoFocal(rows: ProcessoRow[], filtro: AlocacaoFocalFiltro): ProcessoRow[] {
+  if (filtro === "todos") return rows;
+  return rows.filter((r) => classificarAlocacaoFocal(r.alocacaoFocal) === filtro);
+}
+
 /**
  * % entre processos com número oficial: coluna END PROCESSO preenchida vs. vazia.
  * Exclui linhas "Pendente Criação" do denominador (mesma base de `kpisGlobais.comDataFim` / `semEnd`).
@@ -351,72 +404,88 @@ function isProcessoOficialComEnd(r: ProcessoRow): boolean {
 
 export interface RankingPiorPerformanceItem {
   nome: string;
-  /** Quantidade de processos oficiais sem END. */
+  /** Total de processos com número oficial (exclui “Pendente criação”). */
+  quantidadeProcessos: number;
+  /** Soma da coluna VALOR em todos os processos oficiais do responsável. */
+  valorAcumulado: number;
+  /** Processos oficiais sem data em END PROCESSO (quanto mais, pior). */
   processosSemEnd: number;
-  /** Maior `diasEmCurso` entre esses processos (0 se nenhum tiver dias). */
-  maxDiasEmCurso: number;
-  /** Soma dos dias em curso (só linhas com número). */
-  somaDiasSemEnd: number;
 }
 
 /**
- * Pior performance: responsáveis com processos **sem END**;
- * ordenação por maior pico de dias em curso, depois quantidade sem END, depois soma dos dias.
+ * Pior performance (PILARES / PSI): entre responsáveis com pelo menos um processo **sem END**,
+ * ordena por **mais processos sem END**; em empate, **menos processos** no total;
+ * depois por **maior valor acumulado** (todos os oficiais).
  */
 export function rankingPiorPerformanceSemEnd(rows: ProcessoRow[]): RankingPiorPerformanceItem[] {
-  const map = new Map<string, ProcessoRow[]>();
-  for (const r of rows) {
+  const oficiais = apenasProcessosComNumeroOficial(rows);
+  const mapAll = new Map<string, ProcessoRow[]>();
+  for (const r of oficiais) {
     const nome = (r.responsavel || "").trim();
-    if (!nome || !isProcessoOficialSemEnd(r)) continue;
-    if (!map.has(nome)) map.set(nome, []);
-    map.get(nome)!.push(r);
+    if (!nome) continue;
+    if (!mapAll.has(nome)) mapAll.set(nome, []);
+    mapAll.get(nome)!.push(r);
   }
-  const list: RankingPiorPerformanceItem[] = [...map.entries()].map(([nome, rs]) => {
-    const diasVals = rs.map((x) => x.diasEmCurso).filter((n): n is number => n != null);
-    const maxDiasEmCurso = diasVals.length > 0 ? Math.max(...diasVals) : 0;
-    const somaDiasSemEnd = diasVals.reduce((a, b) => a + b, 0);
-    return {
+
+  const list: RankingPiorPerformanceItem[] = [];
+  for (const [nome, rs] of mapAll) {
+    const processosSemEnd = rs.filter(isProcessoOficialSemEnd).length;
+    if (processosSemEnd === 0) continue;
+    list.push({
       nome,
-      processosSemEnd: rs.length,
-      maxDiasEmCurso,
-      somaDiasSemEnd,
-    };
-  });
+      quantidadeProcessos: rs.length,
+      valorAcumulado: rs.reduce((s, x) => s + (x.valor ?? 0), 0),
+      processosSemEnd,
+    });
+  }
   list.sort((a, b) => {
-    if (b.maxDiasEmCurso !== a.maxDiasEmCurso) return b.maxDiasEmCurso - a.maxDiasEmCurso;
     if (b.processosSemEnd !== a.processosSemEnd) return b.processosSemEnd - a.processosSemEnd;
-    return b.somaDiasSemEnd - a.somaDiasSemEnd;
+    if (a.quantidadeProcessos !== b.quantidadeProcessos) return a.quantidadeProcessos - b.quantidadeProcessos;
+    return b.valorAcumulado - a.valorAcumulado;
   });
   return list;
 }
 
 export interface RankingMelhorPerformanceItem {
   nome: string;
-  /** Soma da coluna VALOR em processos oficiais **com** END. */
-  valorComEnd: number;
+  /** Total de processos com número oficial (exclui “Pendente criação”). */
+  quantidadeProcessos: number;
+  /** Soma da coluna VALOR só em processos oficiais **com** END. */
+  valorAcumulado: number;
+  /** Processos oficiais com END PROCESSO preenchido (quanto mais, melhor). */
   processosComEnd: number;
 }
 
 /**
- * Melhor performance: responsáveis com processos **com END**;
- * ordenação por maior soma de VALOR, depois quantidade de processos com END.
+ * Melhor performance: responsáveis com pelo menos um processo **com END**;
+ * ordena por **mais processos com END**; em empate, **mais processos** no total;
+ * depois por **maior valor acumulado** (soma de VALOR nas linhas com END).
  */
 export function rankingMelhorPerformanceComEnd(rows: ProcessoRow[]): RankingMelhorPerformanceItem[] {
-  const map = new Map<string, ProcessoRow[]>();
-  for (const r of rows) {
+  const oficiais = apenasProcessosComNumeroOficial(rows);
+  const mapAll = new Map<string, ProcessoRow[]>();
+  for (const r of oficiais) {
     const nome = (r.responsavel || "").trim();
-    if (!nome || !isProcessoOficialComEnd(r)) continue;
-    if (!map.has(nome)) map.set(nome, []);
-    map.get(nome)!.push(r);
+    if (!nome) continue;
+    if (!mapAll.has(nome)) mapAll.set(nome, []);
+    mapAll.get(nome)!.push(r);
   }
-  const list: RankingMelhorPerformanceItem[] = [...map.entries()].map(([nome, rs]) => ({
-    nome,
-    valorComEnd: rs.reduce((s, x) => s + (x.valor ?? 0), 0),
-    processosComEnd: rs.length,
-  }));
+
+  const list: RankingMelhorPerformanceItem[] = [];
+  for (const [nome, rs] of mapAll) {
+    const comEnd = rs.filter(isProcessoOficialComEnd);
+    if (comEnd.length === 0) continue;
+    list.push({
+      nome,
+      quantidadeProcessos: rs.length,
+      valorAcumulado: comEnd.reduce((s, x) => s + (x.valor ?? 0), 0),
+      processosComEnd: comEnd.length,
+    });
+  }
   list.sort((a, b) => {
-    if (b.valorComEnd !== a.valorComEnd) return b.valorComEnd - a.valorComEnd;
-    return b.processosComEnd - a.processosComEnd;
+    if (b.processosComEnd !== a.processosComEnd) return b.processosComEnd - a.processosComEnd;
+    if (b.quantidadeProcessos !== a.quantidadeProcessos) return b.quantidadeProcessos - a.quantidadeProcessos;
+    return b.valorAcumulado - a.valorAcumulado;
   });
   return list;
 }

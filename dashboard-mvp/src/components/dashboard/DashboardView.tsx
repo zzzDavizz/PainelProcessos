@@ -37,6 +37,7 @@ import {
   TrendingUp,
   Wallet,
   FileSpreadsheet,
+  Tag,
 } from "lucide-react";
 import {
   useCallback,
@@ -50,7 +51,10 @@ import {
 import type { ProcessoRow } from "@/lib/types";
 import { MOCK_PROCESSOS } from "@/lib/mockData";
 import {
+  alocacaoFocalPie,
+  type AlocacaoFocalFiltro,
   distribuicaoPorOnde,
+  filterByAlocacaoFocal,
   filterByBloco,
   filterByStartProcessoRange,
   endProcessoDonut,
@@ -115,6 +119,53 @@ function MiniDonut({
             innerRadius={38}
             outerRadius={52}
             paddingAngle={2}
+          >
+            {data.map((e) => (
+              <Cell key={e.name} fill={e.color} stroke="none" />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(v) => `${v ?? 0}%`}
+            contentStyle={
+              chartDark
+                ? {
+                    backgroundColor: "#1e293b",
+                    border: "1px solid #475569",
+                    borderRadius: "0.75rem",
+                    color: "#ffffff",
+                  }
+                : undefined
+            }
+            labelStyle={chartDark ? { color: "#ffffff" } : undefined}
+            itemStyle={chartDark ? { color: "#ffffff" } : undefined}
+          />
+        </RechartsPieChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Pizza (sem furo) — mesmos dados que o donut de alertas. */
+function MiniPie({
+  data,
+  chartDark = false,
+}: {
+  data: { name: string; value: number; color: string }[];
+  chartDark?: boolean;
+}) {
+  return (
+    <div className="h-[120px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsPieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={0}
+            outerRadius={54}
+            paddingAngle={1}
           >
             {data.map((e) => (
               <Cell key={e.name} fill={e.color} stroke="none" />
@@ -310,6 +361,7 @@ function BlocoPanel({
 }) {
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
+  const focalSlices = alocacaoFocalPie(rows);
   const valorTotalCard = valorTotalProcessos(rows);
   const valorNaoCriados = valorTotalPendentesCriacao(rows);
   return (
@@ -418,7 +470,7 @@ function BlocoPanel({
       <div className="flex min-h-0 flex-1 flex-col border-b border-slate-100 p-4 dark:border-slate-700/80">
         <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} />
       </div>
-      <div className="shrink-0 p-4">
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <PieChart className="h-3.5 w-3.5" />
           Alertas críticos
@@ -437,6 +489,34 @@ function BlocoPanel({
           </ul>
           <div className="mx-auto w-full max-w-[160px] sm:mx-0">
             <MiniDonut data={donut} chartDark={chartDark} />
+          </div>
+        </div>
+      </div>
+      <div className="shrink-0 p-4">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <Tag className="h-3.5 w-3.5" />
+          Alocação focal
+          <span className="ml-0.5 font-normal normal-case text-slate-400 dark:text-slate-500">
+            (interno / externo)
+          </span>
+        </p>
+        <p className="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+          Processos com número oficial; vazio na planilha conta como &quot;Não informado&quot;.
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+            {focalSlices.map((d) => (
+              <li key={d.name} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-slate-600 dark:text-white">
+                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+                  {d.name}
+                </span>
+                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+              </li>
+            ))}
+          </ul>
+          <div className="mx-auto w-full max-w-[160px] sm:mx-0">
+            <MiniPie data={focalSlices} chartDark={chartDark} />
           </div>
         </div>
       </div>
@@ -561,8 +641,10 @@ function PerformanceMetricCard(props: PerformanceMetricCardProps) {
   const text =
     variant === "worst" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400";
 
-  const refWorst = variant === "worst" && list.length > 0 ? Math.max(1, list[0].maxDiasEmCurso) : 1;
-  const refBest = variant === "best" && list.length > 0 ? Math.max(1, list[0].valorComEnd) : 1;
+  const refWorst =
+    variant === "worst" && list.length > 0 ? Math.max(1, list[0].processosSemEnd) : 1;
+  const refBest =
+    variant === "best" && list.length > 0 ? Math.max(1, list[0].processosComEnd) : 1;
 
   if (list.length === 0) {
     return (
@@ -599,16 +681,18 @@ function PerformanceMetricCard(props: PerformanceMetricCardProps) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
                   <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                    {r.processosSemEnd} proc. sem END · soma {r.somaDiasSemEnd}d
+                    {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosSemEnd} sem END
                   </p>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
                       className={`h-full rounded-full ${bar}`}
-                      style={{ width: `${(r.maxDiasEmCurso / refWorst) * 100}%` }}
+                      style={{ width: `${(r.processosSemEnd / refWorst) * 100}%` }}
                     />
                   </div>
                 </div>
-                <span className={`shrink-0 text-base font-bold tabular-nums ${text}`}>{r.maxDiasEmCurso}d</span>
+                <span className={`shrink-0 text-base font-bold tabular-nums ${text}`} title="Processos sem END">
+                  {r.processosSemEnd}
+                </span>
               </li>
             ))
           : (top3 as RankingMelhorPerformanceItem[]).map((r, i) => (
@@ -619,20 +703,20 @@ function PerformanceMetricCard(props: PerformanceMetricCardProps) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
                   <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                    {r.processosComEnd} proc. com END
+                    {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosComEnd} com END
                   </p>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
                       className={`h-full rounded-full ${bar}`}
-                      style={{ width: `${(r.valorComEnd / refBest) * 100}%` }}
+                      style={{ width: `${(r.processosComEnd / refBest) * 100}%` }}
                     />
                   </div>
                 </div>
                 <span
                   className={`max-w-[min(40%,7.5rem)] shrink-0 truncate text-right text-[11px] font-bold leading-tight ${text}`}
-                  title={formatBRL(r.valorComEnd)}
+                  title={formatBRL(r.valorAcumulado)}
                 >
-                  {formatBRL(r.valorComEnd)}
+                  {formatBRL(r.valorAcumulado)}
                 </span>
               </li>
             ))}
@@ -647,8 +731,8 @@ function PerformanceMetricCard(props: PerformanceMetricCardProps) {
                 <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
                   {i + 4}. {r.nome}
                 </span>
-                <span className={`shrink-0 tabular-nums ${text}`}>
-                  {r.maxDiasEmCurso}d · {r.processosSemEnd} s/ END
+                <span className={`max-w-[58%] shrink-0 truncate text-right text-[10px] tabular-nums ${text}`}>
+                  {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosSemEnd} s/END
                 </span>
               </li>
             ))
@@ -657,8 +741,11 @@ function PerformanceMetricCard(props: PerformanceMetricCardProps) {
                 <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
                   {i + 4}. {r.nome}
                 </span>
-                <span className={`max-w-[55%] shrink-0 truncate text-right ${text}`} title={formatBRL(r.valorComEnd)}>
-                  {formatBRL(r.valorComEnd)}
+                <span
+                  className={`max-w-[58%] shrink-0 truncate text-right text-[10px] ${text}`}
+                  title={`${r.quantidadeProcessos} proc. · ${r.processosComEnd} com END`}
+                >
+                  {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosComEnd} c/END
                 </span>
               </li>
             ))}
@@ -729,6 +816,7 @@ export default function DashboardView() {
   /** Intervalo (ISO `YYYY-MM-DD`) na coluna START PROCESSO; vazio = sem filtro nesse limite. */
   const [startProcessoDe, setStartProcessoDe] = useState("");
   const [startProcessoAte, setStartProcessoAte] = useState("");
+  const [alocacaoFocalFiltro, setAlocacaoFocalFiltro] = useState<AlocacaoFocalFiltro>("todos");
   const [lastUpdate, setLastUpdate] = useState(() => new Date());
   const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd">(null);
   /** null = ainda não leu localStorage (evita gravar "light" antes da preferência real). */
@@ -806,10 +894,11 @@ export default function DashboardView() {
 
   const baseProcessos = remoteProcessos === undefined ? MOCK_PROCESSOS : (remoteProcessos ?? MOCK_PROCESSOS);
 
-  const filtered = useMemo(
-    () => filterByStartProcessoRange(searchRows(baseProcessos, search), startProcessoDe, startProcessoAte),
-    [baseProcessos, search, startProcessoDe, startProcessoAte],
-  );
+  const filtered = useMemo(() => {
+    const busca = searchRows(baseProcessos, search);
+    const porData = filterByStartProcessoRange(busca, startProcessoDe, startProcessoAte);
+    return filterByAlocacaoFocal(porData, alocacaoFocalFiltro);
+  }, [baseProcessos, search, startProcessoDe, startProcessoAte, alocacaoFocalFiltro]);
 
   const pilaresRows = useMemo(() => filterByBloco(filtered, "PILARES"), [filtered]);
   const psiRows = useMemo(() => filterByBloco(filtered, "PSI"), [filtered]);
@@ -856,7 +945,7 @@ export default function DashboardView() {
               </div>
               <div className="min-w-0">
                 <p className="text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">
-                  Críticos sem processo criado:
+                  Críticos sem processo criado (Do montante ao lado):
                 </p>
                 <p className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-200">
                   {kpis.criticosSemProcessoCriado}
@@ -1099,39 +1188,58 @@ export default function DashboardView() {
       </header>
 
       <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
-        <div className="mb-6 flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
+        <div className="mb-6 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
             <Sparkles className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
             <span className="min-w-0">
               {dataSourceLabel || "A carregar…"} · última leitura {timeStr}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => exportResumoPlanilhaComoExcel(baseProcessos)}
-            disabled={remoteProcessos === undefined}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700/80 min-[520px]:self-auto"
-            title="Exporta todas as colunas dos dados carregados (espelho do RESUMO), formato de tabela como no detalhe Sem END"
-          >
-            <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            Exportar Excel
-          </button>
+          <div className="flex flex-wrap items-end gap-2 sm:items-center">
+            <label className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+              <span className="whitespace-nowrap text-xs font-semibold text-slate-700 dark:text-slate-200">
+                Alocação Focal
+              </span>
+              <select
+                id="filtro-alocacao-focal"
+                value={alocacaoFocalFiltro}
+                onChange={(e) => setAlocacaoFocalFiltro(e.target.value as AlocacaoFocalFiltro)}
+                disabled={remoteProcessos === undefined}
+                className="min-w-[9.5rem] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-800 shadow-sm outline-none ring-slate-300/50 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:ring-cyan-500/30"
+                aria-label="Filtrar por alocação focal"
+              >
+                <option value="todos">Todos</option>
+                <option value="Interno">Interno</option>
+                <option value="Externo">Externo</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => exportResumoPlanilhaComoExcel(filtered)}
+              disabled={remoteProcessos === undefined}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700/80"
+              title="Exporta os dados visíveis no painel (respeita pesquisa, datas START e Alocação Focal), espelho do RESUMO"
+            >
+              <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+              Exportar Excel
+            </button>
+          </div>
         </div>
 
-        {/* KPIs globais — barra de título + linha valor | detalhe (cores uniformes) */}
-        <section className="mb-6 grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 sm:gap-3 lg:grid-cols-5">
+        {/* KPIs globais — barra de título + linha valor | detalhe (altura de cabeçalho fixa para alinhar todos os cartões) */}
+        <section className="mb-6 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-5">
           {kpiCards.map((k, i) => {
             const { Icon } = kpiIconMap[i];
             const detail = (
-              <div className="flex min-h-[2.5rem] min-w-0 max-w-[48%] shrink-0 flex-col justify-center pl-2 text-right text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300">
+              <div className="flex min-h-[2.75rem] min-w-0 max-w-[48%] shrink-0 flex-col justify-center pl-2 text-right text-[11px] font-medium leading-snug text-slate-600 sm:text-xs dark:text-slate-300">
                 {k.sub}
               </div>
             );
             const body = (
-              <div className="flex w-full flex-col">
-                <div className="border-b border-slate-200/60 bg-slate-100/65 dark:border-slate-600/50 dark:bg-slate-800/45">
+              <div className="flex min-h-0 w-full flex-1 flex-col">
+                <div className="flex min-h-[2.75rem] items-center border-b border-slate-200/70 bg-[#F6F8FB] dark:border-slate-600/50 dark:bg-slate-800/50">
                   <p
-                    className="truncate whitespace-nowrap px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300"
+                    className="w-full truncate px-3 py-0 text-left text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:text-[11px] dark:text-slate-300"
                     title={`${k.label}${k.modal ? " (detalhar)" : ""}`}
                   >
                     {k.label}
@@ -1142,12 +1250,12 @@ export default function DashboardView() {
                     ) : null}
                   </p>
                 </div>
-                <div className="flex min-h-[3.75rem] items-center justify-between gap-2 px-2.5 py-2 sm:gap-3 sm:px-3">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-slate-50/90 text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:shadow-slate-950/40">
-                      <Icon className="h-4 w-4" aria-hidden />
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-between gap-2 px-3 py-2.5 sm:min-h-[4.5rem] sm:gap-3 sm:px-3.5 sm:py-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-slate-50/90 text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:shadow-slate-950/40 sm:h-11 sm:w-11">
+                      <Icon className="h-[1.05rem] w-[1.05rem] sm:h-5 sm:w-5" aria-hidden />
                     </span>
-                    <p className="min-w-0 truncate text-xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-2xl dark:text-white">
+                    <p className="min-w-0 truncate text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl dark:text-white">
                       {k.value}
                     </p>
                   </div>
@@ -1156,14 +1264,14 @@ export default function DashboardView() {
               </div>
             );
             const cardClass =
-              "overflow-hidden rounded-xl border border-slate-200/90 bg-white p-0 text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
+              "flex min-h-0 flex-col self-stretch overflow-hidden rounded-xl border border-slate-200/90 bg-white p-0 text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
             if (k.modal) {
               return (
                 <button
                   key={k.label}
                   type="button"
                   onClick={() => setKpiModal(k.modal)}
-                  className={`${cardClass} m-0 cursor-pointer transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
+                  className={`${cardClass} m-0 cursor-pointer appearance-none font-inherit transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
                   title="Clique para ver a lista de processos"
                 >
                   {body}
@@ -1316,16 +1424,14 @@ export default function DashboardView() {
               © 2026 INTERPI — Governo do Estado
             </span>
             <a href="#" className="hover:text-slate-700 dark:hover:text-slate-200">
-              Privacidade
             </a>
-            <a href="#" className="hover:text-slate-700 dark:hover:text-slate-200">
-              Termos
+            <a href="#" className="hover:text-slate-700 dark:hover:text-slate-200">        
             </a>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              Sistema online
+              Painel online
             </span>
           </div>
         </footer>
