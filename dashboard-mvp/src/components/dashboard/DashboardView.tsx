@@ -63,7 +63,7 @@ import {
   valorTotalPendentesCriacao,
   valorTotalProcessos,
 } from "@/lib/aggregations";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatDataUltimaMovimentacaoBR } from "@/lib/format";
 import { KpiDetailModal } from "@/components/dashboard/KpiDetailModal";
 
 const COLORS = {
@@ -477,7 +477,8 @@ function TopAtrasadosCard({ rows }: { rows: ProcessoRow[] }) {
 
 function ultimosMovimentadosListRow(r: ProcessoRow) {
   const resp = r.responsavel?.trim() || "—";
-  const dataUlt = r.ultimaMovimentacao?.trim() || "—";
+  const dataUltRaw = r.ultimaMovimentacao?.trim() || "";
+  const dataUlt = dataUltRaw ? formatDataUltimaMovimentacaoBR(dataUltRaw) : "—";
   return (
     <li
       key={`${r.processo}-${r.item}-ultimos`}
@@ -506,7 +507,7 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
         </span>
         <span
           className="min-w-0 whitespace-normal break-words font-medium tabular-nums leading-snug text-slate-700 dark:text-slate-300 sm:text-left"
-          title={dataUlt !== "—" ? dataUlt : undefined}
+          title={dataUltRaw || undefined}
         >
           {dataUlt}
         </span>
