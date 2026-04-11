@@ -1,4 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build"
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "next build --webpack && node ./scripts/vercel-routes-manifest.mjs"
 }
