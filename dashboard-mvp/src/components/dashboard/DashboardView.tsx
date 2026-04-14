@@ -19,7 +19,6 @@ import {
   Briefcase,
   CalendarRange,
   Clock,
-  History,
   Hash,
   Hourglass,
   LayoutDashboard,
@@ -33,8 +32,6 @@ import {
   Search,
   Sparkles,
   Sun,
-  TrendingDown,
-  TrendingUp,
   Wallet,
   FileSpreadsheet,
   Tag,
@@ -60,14 +57,10 @@ import {
   endProcessoDonut,
   healthDonut,
   kpisGlobais,
-  type RankingMelhorPerformanceItem,
-  type RankingPiorPerformanceItem,
-  rankingMelhorPerformanceComEnd,
-  rankingPiorPerformanceSemEnd,
   resumoBloco,
   searchRows,
+  termoEncPie,
   topAtrasados,
-  topUltimosMovimentados,
   valorTotalPendentesCriacao,
   valorTotalProcessos,
 } from "@/lib/aggregations";
@@ -103,7 +96,7 @@ function MiniDonut({
   data,
   chartDark = false,
 }: {
-  data: { name: string; value: number; color: string }[];
+  data: { name: string; value: number; color: string; count: number; total: number }[];
   chartDark?: boolean;
 }) {
   return (
@@ -125,7 +118,12 @@ function MiniDonut({
             ))}
           </Pie>
           <Tooltip
-            formatter={(v) => `${v ?? 0}%`}
+            formatter={(v, _name, item) => {
+              const payload = item?.payload as { count?: number; total?: number } | undefined;
+              const count = payload?.count ?? 0;
+              const total = payload?.total ?? 0;
+              return [`${v ?? 0}% (${count}${total > 0 ? ` de ${total}` : ""})`, ""];
+            }}
             contentStyle={
               chartDark
                 ? {
@@ -150,7 +148,7 @@ function MiniPie({
   data,
   chartDark = false,
 }: {
-  data: { name: string; value: number; color: string }[];
+  data: { name: string; value: number; color: string; count: number; total: number }[];
   chartDark?: boolean;
 }) {
   return (
@@ -172,7 +170,12 @@ function MiniPie({
             ))}
           </Pie>
           <Tooltip
-            formatter={(v) => `${v ?? 0}%`}
+            formatter={(v, _name, item) => {
+              const payload = item?.payload as { count?: number; total?: number } | undefined;
+              const count = payload?.count ?? 0;
+              const total = payload?.total ?? 0;
+              return [`${v ?? 0}% (${count}${total > 0 ? ` de ${total}` : ""})`, ""];
+            }}
             contentStyle={
               chartDark
                 ? {
@@ -362,6 +365,7 @@ function BlocoPanel({
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
   const focalSlices = alocacaoFocalPie(rows);
+  const termoEncSlices = termoEncPie(rows);
   const valorTotalCard = valorTotalProcessos(rows);
   const valorNaoCriados = valorTotalPendentesCriacao(rows);
   return (
@@ -376,7 +380,7 @@ function BlocoPanel({
         <div className="flex items-center gap-2.5">
           <span
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 shadow-sm dark:bg-slate-800/90 dark:shadow-none"
-            style={{ color: accent }}
+            style={{ color: chartDark ? "#f8fafc" : accent }}
           >
             <HeaderIcon className="h-5 w-5" aria-hidden />
           </span>
@@ -392,7 +396,7 @@ function BlocoPanel({
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </header>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-100 p-4 dark:border-slate-700/80">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[19.5rem] sm:content-start">
         {/* Linha 1: mesma altura mínima nos 3 blocos (reserva para pendentes mesmo quando 0) */}
         <div className="col-span-2 grid min-h-[5.25rem] grid-cols-2 gap-x-3">
           <div className="flex min-h-0 flex-col">
@@ -427,7 +431,22 @@ function BlocoPanel({
             <p className="text-2xl font-bold tabular-nums leading-none text-slate-900 dark:text-slate-100">
               {resumo.pctCriticos}%
             </p>
-            <div className="mt-1 min-h-[2.75rem]" aria-hidden="true" />
+            <div className="mt-1 min-h-[2.75rem]">
+              {resumo.criticosForaCalculo > 0 ? (
+                <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-300">
+                  {resumo.criticosForaCalculo} linha{resumo.criticosForaCalculo > 1 ? "s" : ""} não{" "}
+                  entra{resumo.criticosForaCalculo > 1 ? "m" : ""} no cálculo
+                  <span className="block font-normal text-slate-500 dark:text-slate-400">
+                    (sem processo criado)
+                  </span>
+                </p>
+              ) : (
+                <p className="invisible text-[10px] leading-tight" aria-hidden="true">
+                  0 linhas não entraram no cálculo
+                  <span className="block">(sem processo criado)</span>
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-col">
@@ -438,6 +457,18 @@ function BlocoPanel({
           <p className="text-xl font-semibold tabular-nums leading-none text-slate-900 dark:text-slate-100">
             {resumo.standbyMedio}d
           </p>
+          <div className="mt-1 min-h-[1.25rem]">
+            {resumo.pendenteCriacao > 0 ? (
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                {resumo.pendenteCriacao} linha{resumo.pendenteCriacao > 1 ? "s" : ""} não{" "}
+                entra{resumo.pendenteCriacao > 1 ? "m" : ""} no cálculo
+              </p>
+            ) : (
+              <p className="invisible text-[10px] leading-tight" aria-hidden="true">
+                0 linhas não entram no cálculo
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex flex-col">
           <p className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
@@ -447,6 +478,18 @@ function BlocoPanel({
           <p className="text-xl font-semibold tabular-nums leading-none text-slate-900 dark:text-slate-100">
             {resumo.diasEmCursoMedio}d
           </p>
+          <div className="mt-1 min-h-[1.25rem]">
+            {resumo.pendenteCriacao > 0 ? (
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                {resumo.pendenteCriacao} linha{resumo.pendenteCriacao > 1 ? "s" : ""} não{" "}
+                entra{resumo.pendenteCriacao > 1 ? "m" : ""} no cálculo
+              </p>
+            ) : (
+              <p className="invisible text-[10px] leading-tight" aria-hidden="true">
+                0 linhas não entram no cálculo
+              </p>
+            )}
+          </div>
         </div>
         <div className="col-span-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/60">
           <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
@@ -467,15 +510,12 @@ function BlocoPanel({
           </p>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col border-b border-slate-100 p-4 dark:border-slate-700/80">
-        <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} />
-      </div>
-      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80">
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[13.5rem] sm:flex sm:flex-col">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <PieChart className="h-3.5 w-3.5" />
           Alertas críticos
         </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
           <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
             {donut.map((d) => (
               <li key={d.name} className="flex items-center justify-between gap-2">
@@ -492,7 +532,7 @@ function BlocoPanel({
           </div>
         </div>
       </div>
-      <div className="shrink-0 p-4">
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[14.5rem] sm:flex sm:flex-col">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <Tag className="h-3.5 w-3.5" />
           Alocação focal
@@ -503,7 +543,7 @@ function BlocoPanel({
         <p className="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
           Processos com número oficial; vazio na planilha conta como &quot;Não informado&quot;.
         </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
           <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
             {focalSlices.map((d) => (
               <li key={d.name} className="flex items-center justify-between gap-2">
@@ -520,48 +560,37 @@ function BlocoPanel({
           </div>
         </div>
       </div>
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[13.5rem] sm:flex sm:flex-col">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <PieChart className="h-3.5 w-3.5" />
+          Distribuição termo enc.
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
+          <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+            {termoEncSlices.map((d) => (
+              <li key={d.name} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-slate-600 dark:text-white">
+                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+                  {d.name}
+                </span>
+                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+              </li>
+            ))}
+          </ul>
+          <div className="mx-auto w-full max-w-[160px] sm:mx-0">
+            <MiniDonut data={termoEncSlices} chartDark={chartDark} />
+          </div>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} />
+      </div>
     </article>
   );
 }
 
-function processoListRow(r: ProcessoRow) {
-  return (
-    <li
-      key={r.processo + r.item}
-      className="flex flex-col gap-1 text-xs sm:flex-row sm:items-start sm:justify-between sm:gap-2"
-    >
-      <span className="min-w-0 break-words font-medium text-slate-800 sm:flex-1 dark:text-slate-200">
-        {r.processo}
-      </span>
-      <span className="flex shrink-0 items-center justify-end gap-1 sm:pt-0.5">
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{
-            background:
-              r.alerta === "CRÍTICO" ? "#dc2626" : r.alerta === "ATENÇÃO" ? "#eab308" : "#22c55e",
-          }}
-        />
-        <strong className="tabular-nums text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
-      </span>
-    </li>
-  );
-}
-
-function TopAtrasadosCard({ rows }: { rows: ProcessoRow[] }) {
-  const top = topAtrasados(rows, 5);
-  return (
-    <div className="w-full min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        <Clock className="h-3.5 w-3.5" />
-        Top atrasados
-      </p>
-      <ul className="space-y-2">{top.map((r) => processoListRow(r))}</ul>
-    </div>
-  );
-}
-
 function ultimosMovimentadosListRow(r: ProcessoRow) {
-  const resp = r.responsavel?.trim() || "—";
+  const localizacao = r.onde?.trim() || "—";
   const dataUltRaw = r.ultimaMovimentacao?.trim() || "";
   const dataUlt = dataUltRaw ? formatDataUltimaMovimentacaoBR(dataUltRaw) : "—";
   return (
@@ -569,7 +598,7 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
       key={`${r.processo}-${r.item}-ultimos`}
       className="border-b border-slate-200/70 py-1.5 text-[10px] last:border-b-0 last:pb-0 dark:border-slate-600/50 sm:py-1"
     >
-      {/* Ordem: processo · dias em curso · responsável · data última movimentação */}
+      {/* Ordem: processo · dias em curso · localização do processo · data última movimentação */}
       <div className="grid w-full max-w-none grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] sm:items-center sm:gap-x-2 sm:gap-y-0">
         <span className="min-w-0 break-words font-medium leading-snug text-slate-800 dark:text-slate-200">
           {r.processo}
@@ -586,9 +615,9 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
         </span>
         <span
           className="min-w-0 truncate leading-snug text-slate-600 dark:text-slate-400 sm:text-left"
-          title={resp !== "—" ? resp : undefined}
+          title={localizacao !== "—" ? localizacao : undefined}
         >
-          {resp}
+          {localizacao}
         </span>
         <span
           className="min-w-0 whitespace-normal break-words font-medium tabular-nums leading-snug text-slate-700 dark:text-slate-300 sm:text-left"
@@ -602,12 +631,12 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
 }
 
 function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
-  const top = topUltimosMovimentados(rows, 5);
+  const top = topAtrasados(rows, 5);
   return (
     <div className="w-full min-w-0 max-w-none self-stretch rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-700 dark:bg-slate-800/50 sm:p-3">
       <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        <History className="h-3 w-3 shrink-0" />
-        Últimos movimentados
+        <Clock className="h-3 w-3 shrink-0" />
+        Top atrasados
       </p>
       <div
         className="mb-1 hidden w-full grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] gap-x-2 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-400 dark:text-slate-500 sm:grid"
@@ -618,7 +647,7 @@ function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
           <span>Dias</span>
           <span>em curso</span>
         </span>
-        <span className="min-w-0">Responsável</span>
+        <span className="min-w-0">Localização processo</span>
         <span className="min-w-0 text-left">
           <span className="block">Data últ.</span>
           <span className="block">movimentação</span>
@@ -626,177 +655,6 @@ function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
       </div>
       <ul className="w-full min-w-0">{top.map((r) => ultimosMovimentadosListRow(r))}</ul>
     </div>
-  );
-}
-
-type PerformanceMetricCardProps =
-  | { variant: "worst"; title: string; list: RankingPiorPerformanceItem[] }
-  | { variant: "best"; title: string; list: RankingMelhorPerformanceItem[] };
-
-function PerformanceMetricCard(props: PerformanceMetricCardProps) {
-  const { variant, title, list } = props;
-  const top3 = list.slice(0, 3);
-  const rest = list.slice(3, 6);
-  const bar = variant === "worst" ? "bg-red-500" : "bg-emerald-500";
-  const text =
-    variant === "worst" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400";
-
-  const refWorst =
-    variant === "worst" && list.length > 0 ? Math.max(1, list[0].processosSemEnd) : 1;
-  const refBest =
-    variant === "best" && list.length > 0 ? Math.max(1, list[0].processosComEnd) : 1;
-
-  if (list.length === 0) {
-    return (
-      <article className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-6 text-center dark:border-slate-600 dark:bg-slate-800/40">
-        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-          {variant === "worst"
-            ? "Sem processos sem END com responsável atribuído neste bloco."
-            : "Sem processos com END com responsável atribuído neste bloco."}
-        </p>
-      </article>
-    );
-  }
-
-  return (
-    <article className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80">
-      <header className="mb-3 flex items-center gap-2">
-        {variant === "worst" ? (
-          <TrendingDown className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
-        ) : (
-          <TrendingUp className="h-4 w-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
-        )}
-        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100">{title}</h3>
-      </header>
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Top 3
-      </p>
-      <ul className="mb-3 space-y-2.5">
-        {variant === "worst"
-          ? (top3 as RankingPiorPerformanceItem[]).map((r, i) => (
-              <li key={r.nome} className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
-                  <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                    {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosSemEnd} sem END
-                  </p>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div
-                      className={`h-full rounded-full ${bar}`}
-                      style={{ width: `${(r.processosSemEnd / refWorst) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <span className={`shrink-0 text-base font-bold tabular-nums ${text}`} title="Processos sem END">
-                  {r.processosSemEnd}
-                </span>
-              </li>
-            ))
-          : (top3 as RankingMelhorPerformanceItem[]).map((r, i) => (
-              <li key={r.nome} className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{r.nome}</p>
-                  <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                    {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosComEnd} com END
-                  </p>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div
-                      className={`h-full rounded-full ${bar}`}
-                      style={{ width: `${(r.processosComEnd / refBest) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <span
-                  className={`max-w-[min(40%,7.5rem)] shrink-0 truncate text-right text-[11px] font-bold leading-tight ${text}`}
-                  title={formatBRL(r.valorAcumulado)}
-                >
-                  {formatBRL(r.valorAcumulado)}
-                </span>
-              </li>
-            ))}
-      </ul>
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Continuidade do ranking
-      </p>
-      <ul className="mb-2 space-y-1.5 text-[10px]">
-        {variant === "worst"
-          ? (rest as RankingPiorPerformanceItem[]).map((r, i) => (
-              <li key={r.nome} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
-                  {i + 4}. {r.nome}
-                </span>
-                <span className={`max-w-[58%] shrink-0 truncate text-right text-[10px] tabular-nums ${text}`}>
-                  {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosSemEnd} s/END
-                </span>
-              </li>
-            ))
-          : (rest as RankingMelhorPerformanceItem[]).map((r, i) => (
-              <li key={r.nome} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-300">
-                  {i + 4}. {r.nome}
-                </span>
-                <span
-                  className={`max-w-[58%] shrink-0 truncate text-right text-[10px] ${text}`}
-                  title={`${r.quantidadeProcessos} proc. · ${r.processosComEnd} com END`}
-                >
-                  {r.quantidadeProcessos} proc. · {formatBRL(r.valorAcumulado)} · {r.processosComEnd} c/END
-                </span>
-              </li>
-            ))}
-      </ul>
-      <button
-        type="button"
-        className="text-[10px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
-      >
-        Ver ranking completo
-      </button>
-    </article>
-  );
-}
-
-function PerformanceBlocoSection({
-  blocoLabel,
-  blocoAccent,
-  Icon,
-  worstList,
-  bestList,
-}: {
-  blocoLabel: string;
-  blocoAccent: string;
-  Icon: LucideIcon;
-  worstList: RankingPiorPerformanceItem[];
-  bestList: RankingMelhorPerformanceItem[];
-}) {
-  return (
-    <article
-      className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/25 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/25"
-      style={{ borderTopWidth: 4, borderTopColor: blocoAccent }}
-    >
-      <header
-        className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-700/80 dark:bg-white/[0.03]"
-        style={{ background: `${blocoAccent}12` }}
-      >
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 shadow-sm dark:border-slate-600 dark:bg-slate-800/90"
-          style={{ color: blocoAccent }}
-        >
-          <Icon className="h-5 w-5" aria-hidden />
-        </span>
-        <h2 className="text-sm font-bold tracking-wide text-slate-800 dark:text-slate-100">
-          Performance — {blocoLabel}
-        </h2>
-      </header>
-      <div className="grid gap-4 p-4 md:grid-cols-2">
-        <PerformanceMetricCard variant="worst" title="Pior performance" list={worstList} />
-        <PerformanceMetricCard variant="best" title="Melhor performance" list={bestList} />
-      </div>
-    </article>
   );
 }
 
@@ -906,11 +764,6 @@ export default function DashboardView() {
 
   const kpis = useMemo(() => kpisGlobais(allForKpi), [allForKpi]);
 
-  const worstPilares = useMemo(() => rankingPiorPerformanceSemEnd(pilaresRows), [pilaresRows]);
-  const bestPilares = useMemo(() => rankingMelhorPerformanceComEnd(pilaresRows), [pilaresRows]);
-  const worstPsi = useMemo(() => rankingPiorPerformanceSemEnd(psiRows), [psiRows]);
-  const bestPsi = useMemo(() => rankingMelhorPerformanceComEnd(psiRows), [psiRows]);
-
   const alertasRows = useMemo(
     () => allForKpi.filter((r) => r.alerta === "CRÍTICO" || r.alerta === "ATENÇÃO"),
     [allForKpi],
@@ -925,7 +778,7 @@ export default function DashboardView() {
           sub:
             kpis.pendenteCriacao > 0
               ? `${kpis.pendenteCriacao} pendente${kpis.pendenteCriacao > 1 ? "s" : ""} de criação`
-              : "Nenhum pendente de criação",
+              : "",
           modal: null as null,
         },
         {
@@ -939,13 +792,13 @@ export default function DashboardView() {
                 </p>
                 <p className="text-[11px] font-semibold leading-tight tabular-nums text-slate-700 dark:text-slate-200">
                   {kpis.totalProcessos > 0
-                    ? `${kpis.pctCriticos}% (${kpis.criticosTotal}/${kpis.totalProcessos})`
+                    ? `${kpis.pctCriticos}% (${kpis.alertasCriticos}/${kpis.totalProcessos})`
                     : "—"}
                 </p>
               </div>
               <div className="min-w-0">
                 <p className="text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">
-                  Críticos sem processo criado (Do montante ao lado):
+                  Linhas críticas fora do cálculo:
                 </p>
                 <p className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-200">
                   {kpis.criticosSemProcessoCriado}
@@ -958,13 +811,19 @@ export default function DashboardView() {
         {
           label: "Standby médio",
           value: `${kpis.standbyMedio}d`,
-          sub: "média",
+          sub:
+            kpis.pendenteCriacao > 0
+              ? `${kpis.pendenteCriacao} processo${kpis.pendenteCriacao > 1 ? "s" : ""} fora do cálculo`
+              : "média",
           modal: null as null,
         },
         {
           label: "Tempo médio em curso",
           value: `${kpis.diasEmCursoMedio}d`,
-          sub: "média",
+          sub:
+            kpis.pendenteCriacao > 0
+              ? `${kpis.pendenteCriacao} processo${kpis.pendenteCriacao > 1 ? "s" : ""} fora do cálculo`
+              : "média",
           modal: null as null,
         },
         {
@@ -1050,8 +909,12 @@ export default function DashboardView() {
       <header className="border-b border-[#003d7a]/40 bg-gradient-to-b from-[#0062cc] via-[#0056b3] to-[#004a99] text-white shadow-lg shadow-[#001f3d]/35 dark:border-slate-800/80 dark:bg-gradient-to-r dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 dark:shadow-lg dark:shadow-slate-900/20">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 dark:bg-white/10 dark:ring-white/20">
-              <LayoutDashboard className="h-6 w-6 text-cyan-200 dark:text-cyan-300" aria-hidden />
+            <div className="h-14 w-[9.5rem] shrink-0 sm:h-16 sm:w-[11.5rem] lg:w-[13rem]">
+              <img
+                src="/interpi-45-anos-logo-wide.png"
+                alt="Logo 45 anos INTERPI"
+                className="block h-full w-full object-contain"
+              />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-100/90 dark:text-slate-400">
@@ -1231,15 +1094,18 @@ export default function DashboardView() {
           {kpiCards.map((k, i) => {
             const { Icon } = kpiIconMap[i];
             const detail = (
-              <div className="flex min-h-[2.75rem] min-w-0 max-w-[48%] shrink-0 flex-col justify-center pl-2 text-right text-[11px] font-medium leading-snug text-slate-600 sm:text-xs dark:text-slate-300">
+              <div className="flex min-h-[2.75rem] min-w-0 max-w-[42%] shrink-0 flex-col justify-center pl-2 text-right text-[10px] font-medium leading-snug text-slate-600 sm:text-[11px] dark:text-slate-300">
                 {k.sub}
               </div>
             );
             const body = (
               <div className="flex min-h-0 w-full flex-1 flex-col">
-                <div className="flex min-h-[2.75rem] items-center border-b border-slate-200/70 bg-[#F6F8FB] dark:border-slate-600/50 dark:bg-slate-800/50">
+                <div
+                  className="flex min-h-[2.75rem] items-center border-b border-slate-200/70 dark:border-slate-600/50"
+                  style={{ backgroundColor: darkMode === true ? "#002942" : "#F5FAF4" }}
+                >
                   <p
-                    className="w-full truncate px-3 py-0 text-left text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:text-[11px] dark:text-slate-300"
+                    className="w-full truncate px-3 py-0 text-left text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:text-[11px] dark:text-slate-200"
                     title={`${k.label}${k.modal ? " (detalhar)" : ""}`}
                   >
                     {k.label}
@@ -1255,7 +1121,7 @@ export default function DashboardView() {
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-slate-50/90 text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:shadow-slate-950/40 sm:h-11 sm:w-11">
                       <Icon className="h-[1.05rem] w-[1.05rem] sm:h-5 sm:w-5" aria-hidden />
                     </span>
-                    <p className="min-w-0 truncate text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+                    <p className="min-w-0 text-[clamp(1.35rem,2vw,1.85rem)] font-bold leading-none tabular-nums tracking-tight text-slate-900 dark:text-white">
                       {k.value}
                     </p>
                   </div>
@@ -1354,67 +1220,50 @@ export default function DashboardView() {
                 <p className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-100">
                   <span
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/80"
-                    style={{ color: rowAccent }}
+                    style={{ color: darkMode === true ? "#f8fafc" : rowAccent }}
                   >
                     <RowIcon className="h-4 w-4" aria-hidden />
                   </span>
                   {label}
                 </p>
                 <div className="flex w-full min-w-0 flex-col gap-4">
-                  {/* Linha 1: donut END + top atrasados lado a lado */}
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-                    <div className="min-w-0 shrink-0 sm:w-[26%] sm:min-w-[140px] sm:max-w-[200px]">
+                  {/* Linha 1: donut END com legenda lateral */}
+                  <div className="flex justify-center">
+                    <div className="w-full min-w-0 max-w-[320px]">
                       <p className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         <Clock className="h-3 w-3 shrink-0" aria-hidden />
                         END processo
                       </p>
-                      <MiniDonut data={endDonut} chartDark={darkMode === true} />
-                      <ul className="mt-2 space-y-1 text-[11px]">
-                        {endDonut.map((d) => (
-                          <li
-                            key={d.name}
-                            className="flex justify-between text-slate-600 dark:text-white"
-                          >
-                            <span className="flex items-center gap-1">
-                              <span
-                                className="h-1.5 w-1.5 rounded-full"
-                                style={{ background: d.color }}
-                              />
-                              {d.name}
-                            </span>
-                            <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-                      <TopAtrasadosCard rows={rows} />
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+                          {endDonut.map((d) => (
+                            <li
+                              key={d.name}
+                              className="flex items-center justify-between gap-2 text-slate-600 dark:text-white"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ background: d.color }}
+                                />
+                                {d.name}
+                              </span>
+                              <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mx-auto w-full max-w-[160px] sm:mx-0">
+                          <MiniDonut data={endDonut} chartDark={darkMode === true} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  {/* Linha 2: tabela em largura total (preenche a faixa ao lado do donut) */}
+                  {/* Linha 2: tabela em largura total */}
                   <UltimosMovimentadosCard rows={rows} />
                 </div>
               </div>
             );
           })}
-        </section>
-
-        {/* Performance por bloco: cada card agrupa pior + melhor (PILARES e PSI) */}
-        <section className="mb-10 grid gap-6 lg:grid-cols-2">
-          <PerformanceBlocoSection
-            blocoLabel="PILARES"
-            blocoAccent={COLORS.pilares}
-            Icon={Layers}
-            worstList={worstPilares}
-            bestList={bestPilares}
-          />
-          <PerformanceBlocoSection
-            blocoLabel="PSI"
-            blocoAccent={COLORS.psi}
-            Icon={Briefcase}
-            worstList={worstPsi}
-            bestList={bestPsi}
-          />
         </section>
 
         <footer className="flex flex-col gap-2 border-t border-slate-200 pt-6 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">

@@ -159,35 +159,42 @@ export function pct(part: number, total: number): number {
 }
 
 /**
- * Média de dias em STAND BY: soma (valor ou 0 se vazio) / número de linhas do conjunto.
- * Inclui "Pendente Criação"; vazio → 0, para não inflar a média ao excluir essas linhas só do denominador.
+ * Média de dias em STAND BY só entre processos com número oficial.
+ * Linhas "Pendente Criação" não entram no cálculo.
  */
 export function mediaStandbyPainel(rows: ProcessoRow[]): number {
-  if (rows.length === 0) return 0;
-  const sum = rows.reduce((s, r) => s + (r.standByDias ?? 0), 0);
-  return Math.round(sum / rows.length);
+  const criados = apenasProcessosComNumeroOficial(rows);
+  if (criados.length === 0) return 0;
+  const sum = criados.reduce((s, r) => s + (r.standByDias ?? 0), 0);
+  return Math.round(sum / criados.length);
 }
 
 export interface HealthSlice {
   name: string;
   value: number;
   color: string;
+  count: number;
+  total: number;
 }
 
 export function healthDonut(rows: ProcessoRow[]): HealthSlice[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
   let c = 0,
     a = 0,
     ok = 0;
-  for (const r of rows) {
+  for (const r of criados) {
     if (r.alerta === "CRÍTICO") c++;
     else if (r.alerta === "ATENÇÃO") a++;
     else ok++;
   }
-  const t = rows.length || 1;
+  const t = criados.length;
+  if (t === 0) {
+    return [{ name: "Sem dados", value: 100, color: "#94a3b8", count: 0, total: 0 }];
+  }
   return [
-    { name: "Crítico", value: pct(c, t), color: "#dc2626" },
-    { name: "Atenção", value: pct(a, t), color: "#eab308" },
-    { name: "OK", value: pct(ok, t), color: "#16a34a" },
+    { name: "Crítico", value: pct(c, t), color: "#dc2626", count: c, total: t },
+    { name: "Atenção", value: pct(a, t), color: "#eab308", count: a, total: t },
+    { name: "OK", value: pct(ok, t), color: "#16a34a", count: ok, total: t },
   ];
 }
 
@@ -212,7 +219,7 @@ export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
   const criados = apenasProcessosComNumeroOficial(rows);
   const t = criados.length;
   if (t === 0) {
-    return [{ name: "Sem dados", value: 100, color: "#94a3b8" }];
+    return [{ name: "Sem dados", value: 100, color: "#94a3b8", count: 0, total: 0 }];
   }
   let interno = 0;
   let externo = 0;
@@ -226,12 +233,57 @@ export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
     else outros++;
   }
   const slices: HealthSlice[] = [
-    { name: "Interno", value: pct(interno, t), color: "#2563eb" },
-    { name: "Externo", value: pct(externo, t), color: "#ea580c" },
-    { name: "Não informado", value: pct(naoInfo, t), color: "#94a3b8" },
+    { name: "Interno", value: pct(interno, t), color: "#2563eb", count: interno, total: t },
+    { name: "Externo", value: pct(externo, t), color: "#ea580c", count: externo, total: t },
+    { name: "Não informado", value: pct(naoInfo, t), color: "#94a3b8", count: naoInfo, total: t },
   ];
   if (outros > 0) {
-    slices.push({ name: "Outros", value: pct(outros, t), color: "#7c3aed" });
+    slices.push({ name: "Outros", value: pct(outros, t), color: "#7c3aed", count: outros, total: t });
+  }
+  return slices;
+}
+
+function classificarTermoEnc(raw: string | null): "Incluso" | "Ausente" | "Não se aplica" | "Outros" {
+  const t = (raw ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (!t || t === "-" || t === "—") return "Outros";
+  if (t === "incluso") return "Incluso";
+  if (t === "ausente") return "Ausente";
+  if (t === "nao se aplica" || t === "n/a" || t === "na") return "Não se aplica";
+  return "Outros";
+}
+
+/**
+ * Distribuição da coluna **TERMO ENC.** entre processos com número oficial.
+ * Normaliza maiúsculas/minúsculas e trata "Não se aplica" também como "N/A" ou "n/a".
+ */
+export function termoEncPie(rows: ProcessoRow[]): HealthSlice[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
+  const t = criados.length;
+  if (t === 0) {
+    return [{ name: "Sem dados", value: 100, color: "#94a3b8", count: 0, total: 0 }];
+  }
+  let incluso = 0;
+  let ausente = 0;
+  let naoSeAplica = 0;
+  let outros = 0;
+  for (const r of criados) {
+    const bucket = classificarTermoEnc(r.termoEnc);
+    if (bucket === "Incluso") incluso++;
+    else if (bucket === "Ausente") ausente++;
+    else if (bucket === "Não se aplica") naoSeAplica++;
+    else outros++;
+  }
+  const slices: HealthSlice[] = [
+    { name: "Incluso", value: pct(incluso, t), color: "#16a34a", count: incluso, total: t },
+    { name: "Ausente", value: pct(ausente, t), color: "#ea580c", count: ausente, total: t },
+    { name: "Não se aplica", value: pct(naoSeAplica, t), color: "#2563eb", count: naoSeAplica, total: t },
+  ];
+  if (outros > 0) {
+    slices.push({ name: "Outros", value: pct(outros, t), color: "#94a3b8", count: outros, total: t });
   }
   return slices;
 }
@@ -257,8 +309,8 @@ export function endProcessoDonut(rows: ProcessoRow[]): HealthSlice[] {
   }
   const semEnd = criados.length - comEnd;
   return [
-    { name: "Com END", value: pct(comEnd, t), color: "#16a34a" },
-    { name: "Sem END", value: pct(semEnd, t), color: "#ea580c" },
+    { name: "Com END", value: pct(comEnd, t), color: "#16a34a", count: comEnd, total: criados.length },
+    { name: "Sem END", value: pct(semEnd, t), color: "#ea580c", count: semEnd, total: criados.length },
   ];
 }
 
@@ -273,7 +325,7 @@ export interface KpiGlobal {
   criticosTotal: number;
   /** Entre as linhas críticas, quantas ainda não têm número de processo ("Pendente Criação"). */
   criticosSemProcessoCriado: number;
-  /** (criticosTotal / totalProcessos) × 100 — numerador inclui críticos em pendentes. */
+  /** (alertasCriticos / totalProcessos) × 100 — só processos criados entram no cálculo. */
   pctCriticos: number;
   standbyMedio: number;
   diasEmCursoMedio: number;
@@ -304,7 +356,7 @@ export function kpisGlobais(rows: ProcessoRow[]): KpiGlobal {
     alertasCriticos: criticos,
     criticosTotal,
     criticosSemProcessoCriado,
-    pctCriticos: total > 0 ? pct(criticosTotal, total) : 0,
+    pctCriticos: total > 0 ? pct(criticos, total) : 0,
     standbyMedio,
     diasEmCursoMedio,
     semEnd,
@@ -316,7 +368,9 @@ export interface BlocoResumo {
   /** Com número de processo (exclui "Pendente Criação"). */
   total: number;
   pendenteCriacao: number;
-  /** (linhas CRÍTICO no bloco / processos criados no bloco) × 100. */
+  /** Linhas CRÍTICO sem número oficial de processo; não entram no percentual. */
+  criticosForaCalculo: number;
+  /** (linhas CRÍTICO com processo criado / processos criados no bloco) × 100. */
   pctCriticos: number;
   standbyMedio: number;
   diasEmCursoMedio: number;
@@ -326,7 +380,10 @@ export function resumoBloco(rows: ProcessoRow[]): BlocoResumo {
   const criados = apenasProcessosComNumeroOficial(rows);
   const total = criados.length;
   const pendenteCriacao = contarPendentesCriacao(rows);
-  const criticosTotalBloco = rows.filter((r) => r.alerta === "CRÍTICO").length;
+  const criticosCriadosBloco = criados.filter((r) => r.alerta === "CRÍTICO").length;
+  const criticosForaCalculo = rows.filter(
+    (r) => r.alerta === "CRÍTICO" && isPendenteCriacaoProcesso(r),
+  ).length;
   const standbyMedio = mediaStandbyPainel(rows);
   const diasVals = criados.map((r) => r.diasEmCurso).filter((n): n is number => n != null);
   const diasEmCursoMedio =
@@ -336,7 +393,8 @@ export function resumoBloco(rows: ProcessoRow[]): BlocoResumo {
   return {
     total,
     pendenteCriacao,
-    pctCriticos: total > 0 ? pct(criticosTotalBloco, total) : 0,
+    criticosForaCalculo,
+    pctCriticos: total > 0 ? pct(criticosCriadosBloco, total) : 0,
     standbyMedio,
     diasEmCursoMedio,
   };
