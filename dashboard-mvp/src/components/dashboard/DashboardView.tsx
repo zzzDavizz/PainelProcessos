@@ -3,7 +3,6 @@
 import {
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart as RechartsPieChart,
@@ -250,14 +249,10 @@ function OndeProcessoBars({
             margin={{ top: 8, right: 20, left: 4, bottom: 8 }}
             barCategoryGap="18%"
           >
-            <CartesianGrid strokeDasharray="4 6" stroke={t.grid} horizontal={false} />
             <XAxis
               type="number"
               domain={[0, 100]}
-              tickFormatter={(x) => `${x}%`}
-              tick={{ fontSize: 11, fill: t.xTick }}
-              axisLine={{ stroke: t.axis }}
-              tickLine={{ stroke: t.axis }}
+              hide
             />
             <YAxis
               type="category"
@@ -603,14 +598,7 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
         <span className="min-w-0 break-words font-medium leading-snug text-slate-800 dark:text-slate-200">
           {r.processo}
         </span>
-        <span className="flex shrink-0 items-center gap-0.5 sm:justify-center">
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2"
-            style={{
-              background:
-                r.alerta === "CRÍTICO" ? "#dc2626" : r.alerta === "ATENÇÃO" ? "#eab308" : "#22c55e",
-            }}
-          />
+        <span className="flex shrink-0 items-center sm:justify-center">
           <strong className="tabular-nums text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
         </span>
         <span
@@ -921,7 +909,7 @@ export default function DashboardView() {
                 Painel executivo
               </p>
               <h1 className="mt-0.5 text-xl font-bold tracking-tight text-white sm:text-2xl dark:text-white">
-                INTERPI Executive Dashboard
+                INTERPI - GESTÃO CONTRATOS
               </h1>
               <p className="mt-1 max-w-2xl text-sm leading-snug text-blue-50/95 dark:text-slate-300">
                 Acompanhamento do andamento dos processos Pilares II e PSI — Contratações
