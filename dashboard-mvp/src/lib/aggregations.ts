@@ -1,4 +1,5 @@
-import type { Bloco, ProcessoRow } from "./types";
+import type { AlertaNivel, Bloco, ProcessoRow } from "./types";
+import { parseDataIso } from "./parseResumoCsv";
 
 export function filterByBloco(rows: ProcessoRow[], bloco: Bloco | "ALL"): ProcessoRow[] {
   if (bloco === "ALL") return rows;
@@ -9,24 +10,33 @@ export function filterByBloco(rows: ProcessoRow[], bloco: Bloco | "ALL"): Proces
  * Padrão típico na coluna PROCESSO (ex.: 00071.004462/2025-29).
  * Se existir, a linha conta como criada mesmo que ainda haja texto residual na célula (export/merge).
  */
+export function temNumeroOficialProcesso(row: Pick<ProcessoRow, "processo">): boolean {
+  return pareceNumeroOficialProcesso(row.processo ?? "");
+}
+
 function pareceNumeroOficialProcesso(raw: string): boolean {
   const t = raw.trim();
   return /\d{3,}\.\d+\/\d{4}-\d+/i.test(t);
 }
 
 /**
- * Processo sem número oficial na coluna PROCESSO (planilha: "Pendente Criação", variações de maiúsculas).
- * Não entra no total "com processo criado".
+ * Linha sem número oficial na coluna PROCESSO.
+ * A planilha costuma usar "Pendente Criação", mas também pode vir vazia, com traço ou texto residual.
+ * Tudo o que não tiver número oficial entra como "não criado".
  */
 export function isPendenteCriacaoProcesso(row: Pick<ProcessoRow, "processo">): boolean {
   const raw = (row.processo ?? "").trim();
-  if (pareceNumeroOficialProcesso(raw)) return false;
+  if (temNumeroOficialProcesso(row)) return false;
   const t = raw
     .toLowerCase()
     .replace(/\s+/g, " ")
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
-  return t === "pendente criacao";
+  if (!t || t === "-" || t === "—") return true;
+  if (t === "pendente criacao") return true;
+  if (t.includes("pendente") && t.includes("cria")) return true;
+  if (t === "pendente" || t === "pendente de criacao" || t === "pendente de criação") return true;
+  return true;
 }
 
 export function apenasProcessosComNumeroOficial(rows: ProcessoRow[]): ProcessoRow[] {
@@ -85,6 +95,10 @@ export function valorTotalPendentesCriacao(rows: ProcessoRow[]): number {
 function normalizeOndeKey(onde: string): string {
   const t = onde.trim();
   return t.length > 0 ? t : ONDE_VAZIO_LABEL;
+}
+
+export function formatOndeBucketLabel(name: string): string {
+  return name === ONDE_VAZIO_LABEL ? "(sem local definido)" : name;
 }
 
 export interface DistribuicaoPorOndeOpts {
@@ -153,6 +167,25 @@ export function distribuicaoPorOnde(
   });
 }
 
+/** Linhas do bucket clicado no ranking «Onde está o processo?». */
+export function processosPorBucketOnde(rows: ProcessoRow[], bucketNome: string, maxRotulos = 8): ProcessoRow[] {
+  const normalizedRows = rows.map((r) => ({ row: r, ondeKey: normalizeOndeKey(r.onde ?? "") }));
+  if (bucketNome !== "Demais") {
+    return normalizedRows
+      .filter(({ ondeKey }) => ondeKey === bucketNome)
+      .map(({ row }) => row);
+  }
+
+  const topBuckets = distribuicaoPorOnde(rows, maxRotulos)
+    .map((r) => r.name)
+    .filter((name) => name !== "Demais");
+  const topSet = new Set(topBuckets);
+
+  return normalizedRows
+    .filter(({ ondeKey }) => !topSet.has(ondeKey))
+    .map(({ row }) => row);
+}
+
 export function pct(part: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((part / total) * 1000) / 10;
@@ -167,6 +200,95 @@ export function mediaStandbyPainel(rows: ProcessoRow[]): number {
   if (criados.length === 0) return 0;
   const sum = criados.reduce((s, r) => s + (r.standByDias ?? 0), 0);
   return Math.round(sum / criados.length);
+}
+
+export interface StandbyMedioPorOndeRow {
+  /** Valor agregado da coluna «ONDE ESTÁ O PROCESSO?»; vazio → `ONDE_VAZIO_LABEL`. */
+  onde: string;
+  quantidade: number;
+  standbyMedio: number;
+}
+
+/**
+ * Por local («ONDE ESTÁ O PROCESSO?»), só processos com número oficial: quantidade e média de dias em stand-by.
+ * Ordenação: maior standby médio primeiro. Limita a `maxLocais` linhas para leitura em gráfico.
+ */
+export function rankingStandbyMedioPorOnde(rows: ProcessoRow[], maxLocais = 20): StandbyMedioPorOndeRow[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
+  const map = new Map<string, { sumSb: number; n: number }>();
+  for (const r of criados) {
+    const key = normalizeOndeKey(r.onde ?? "");
+    const cur = map.get(key) ?? { sumSb: 0, n: 0 };
+    cur.sumSb += r.standByDias ?? 0;
+    cur.n += 1;
+    map.set(key, cur);
+  }
+  const list: StandbyMedioPorOndeRow[] = [...map.entries()].map(([onde, { sumSb, n }]) => ({
+    onde,
+    quantidade: n,
+    standbyMedio: n > 0 ? Math.round(sumSb / n) : 0,
+  }));
+  list.sort((a, b) => b.standbyMedio - a.standbyMedio || b.quantidade - a.quantidade);
+  return list.slice(0, maxLocais);
+}
+
+export interface StandbyMedioPorOndePilaresPsiRow {
+  onde: string;
+  quantidadePilares: number;
+  /** Média arredondada; 0 se não houver processos PILARES neste local. */
+  standbyMedioPilares: number;
+  quantidadePsi: number;
+  /** Média arredondada; 0 se não houver processos PSI neste local. */
+  standbyMedioPsi: number;
+}
+
+/**
+ * Por local («ONDE ESTÁ O PROCESSO?»), média de stand-by separada para PILARES e para PSI (só processos criados).
+ * Ordenação: maior valor entre as duas médias; empate por soma de quantidades. Limita a `maxLocais`.
+ */
+export function rankingStandbyMedioPorOndePilaresPsi(
+  rows: ProcessoRow[],
+  maxLocais = 20,
+): StandbyMedioPorOndePilaresPsiRow[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
+  type Agg = { sumSb: number; n: number };
+  const mapPilares = new Map<string, Agg>();
+  const mapPsi = new Map<string, Agg>();
+
+  for (const r of criados) {
+    const key = normalizeOndeKey(r.onde ?? "");
+    const map = r.bloco === "PILARES" ? mapPilares : mapPsi;
+    const cur = map.get(key) ?? { sumSb: 0, n: 0 };
+    cur.sumSb += r.standByDias ?? 0;
+    cur.n += 1;
+    map.set(key, cur);
+  }
+
+  const keys = new Set<string>([...mapPilares.keys(), ...mapPsi.keys()]);
+  const list: StandbyMedioPorOndePilaresPsiRow[] = [...keys].map((onde) => {
+    const p = mapPilares.get(onde);
+    const s = mapPsi.get(onde);
+    const qp = p?.n ?? 0;
+    const qs = s?.n ?? 0;
+    return {
+      onde,
+      quantidadePilares: qp,
+      standbyMedioPilares: qp > 0 ? Math.round(p!.sumSb / qp) : 0,
+      quantidadePsi: qs,
+      standbyMedioPsi: qs > 0 ? Math.round(s!.sumSb / qs) : 0,
+    };
+  });
+
+  list.sort((a, b) => {
+    const maxA = Math.max(a.standbyMedioPilares, a.standbyMedioPsi);
+    const maxB = Math.max(b.standbyMedioPilares, b.standbyMedioPsi);
+    if (maxB !== maxA) return maxB - maxA;
+    const totA = a.quantidadePilares + a.quantidadePsi;
+    const totB = b.quantidadePilares + b.quantidadePsi;
+    return totB - totA;
+  });
+
+  return list.slice(0, maxLocais);
 }
 
 export interface HealthSlice {
@@ -198,6 +320,19 @@ export function healthDonut(rows: ProcessoRow[]): HealthSlice[] {
   ];
 }
 
+const FATIA_ALERTA_PARA_NIVEL: Record<string, AlertaNivel> = {
+  Crítico: "CRÍTICO",
+  Atenção: "ATENÇÃO",
+  OK: "OK",
+};
+
+/** Processos criados (nº oficial) com o nível de alerta da fatia clicada no donut «Alertas críticos». */
+export function processosCriadosPorFatiaAlerta(rows: ProcessoRow[], nomeFatia: string): ProcessoRow[] {
+  const nivel = FATIA_ALERTA_PARA_NIVEL[nomeFatia];
+  if (!nivel) return [];
+  return apenasProcessosComNumeroOficial(rows).filter((r) => r.alerta === nivel);
+}
+
 /** Classifica texto da coluna ALOCAÇÃO FOCAL (planilha). */
 function classificarAlocacaoFocal(raw: string | null): "Interno" | "Externo" | "Não informado" | "Outros" {
   const t = (raw ?? "")
@@ -215,6 +350,15 @@ function classificarAlocacaoFocal(raw: string | null): "Interno" | "Externo" | "
  * Distribuição da **ALOCAÇÃO FOCAL** entre processos com número oficial (exclui "Pendente Criação").
  * Percentagens sobre esse total.
  */
+const FATIA_ALOCACAO_FOCAL = new Set(["Interno", "Externo", "Não informado", "Outros"]);
+
+/** Processos criados (nº oficial) na fatia clicada no gráfico «Alocação focal». */
+export function processosCriadosPorFatiaAlocacaoFocal(rows: ProcessoRow[], nomeFatia: string): ProcessoRow[] {
+  if (nomeFatia === "Sem dados" || !FATIA_ALOCACAO_FOCAL.has(nomeFatia)) return [];
+  const criados = apenasProcessosComNumeroOficial(rows);
+  return criados.filter((r) => classificarAlocacaoFocal(r.alocacaoFocal) === nomeFatia);
+}
+
 export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
   const criados = apenasProcessosComNumeroOficial(rows);
   const t = criados.length;
@@ -254,6 +398,15 @@ function classificarTermoEnc(raw: string | null): "Incluso" | "Ausente" | "Não 
   if (t === "ausente") return "Ausente";
   if (t === "nao se aplica" || t === "n/a" || t === "na") return "Não se aplica";
   return "Outros";
+}
+
+const FATIA_TERMO_ENC = new Set(["Incluso", "Ausente", "Não se aplica", "Outros"]);
+
+/** Processos criados (nº oficial) na fatia clicada no gráfico «Distribuição termo enc.». */
+export function processosCriadosPorFatiaTermoEnc(rows: ProcessoRow[], nomeFatia: string): ProcessoRow[] {
+  if (nomeFatia === "Sem dados" || !FATIA_TERMO_ENC.has(nomeFatia)) return [];
+  const criados = apenasProcessosComNumeroOficial(rows);
+  return criados.filter((r) => classificarTermoEnc(r.termoEnc) === nomeFatia);
 }
 
 /**
@@ -312,6 +465,18 @@ export function endProcessoDonut(rows: ProcessoRow[]): HealthSlice[] {
     { name: "Com END", value: pct(comEnd, t), color: "#16a34a", count: comEnd, total: criados.length },
     { name: "Sem END", value: pct(semEnd, t), color: "#ea580c", count: semEnd, total: criados.length },
   ];
+}
+
+const FATIA_END_PROCESSO = new Set(["Com END", "Sem END"]);
+
+/** Processos criados (nº oficial) na fatia clicada do gráfico «END processo». */
+export function processosCriadosPorFatiaEndProcesso(rows: ProcessoRow[], nomeFatia: string): ProcessoRow[] {
+  if (nomeFatia === "Sem dados" || !FATIA_END_PROCESSO.has(nomeFatia)) return [];
+  const criados = apenasProcessosComNumeroOficial(rows);
+  return criados.filter((r) => {
+    const temEnd = (r.endProcesso ?? "").trim().length > 0;
+    return nomeFatia === "Com END" ? temEnd : !temEnd;
+  });
 }
 
 export interface KpiGlobal {
@@ -622,10 +787,111 @@ export function filterByStartProcessoRange(
   const hasTo = t.length > 0;
   if (!hasFrom && !hasTo) return rows;
   return rows.filter((r) => {
-    const s = (r.startProcesso ?? "").trim();
-    if (!s) return false;
+    const s = parseDataIso((r.startProcesso ?? "").trim());
+    if (!s || !DATA_ISO.test(s)) return false;
     if (hasFrom && s < f) return false;
     if (hasTo && s > t) return false;
     return true;
   });
+}
+
+export interface ProcessoInicioResumo {
+  processo: string;
+  onde: string;
+}
+
+export interface StartProcessoEvolucaoPonto {
+  /** `YYYY-MM-DD` (agrupamento por dia) ou `YYYY-MM` (por mês). */
+  sortKey: string;
+  label: string;
+  /** Total de linhas neste período com START PROCESSO válido, com ou sem número oficial. */
+  quantidadeTotal: number;
+  /** Processos com número oficial neste período. */
+  quantidade: number;
+  detalhes: ProcessoInicioResumo[];
+  /** Linhas «Pendente Criação» com START PROCESSO neste mesmo período (sem número oficial). */
+  quantidadePendentesCriacao: number;
+  detalhesPendentesCriacao: ProcessoInicioResumo[];
+}
+
+function labelDiaStartIso(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function labelMesStartYm(ym: string): string {
+  const [y, mo] = ym.split("-");
+  return `${mo}/${y}`;
+}
+
+/**
+ * Evolução por START PROCESSO (ISO válido): processos **criados** (nº oficial) e, no mesmo bucket,
+ * linhas **Pendente Criação** (sem número oficial) que também tenham START PROCESSO preenchido.
+ * Se existirem até 45 datas distintas no conjunto, agrupa por dia; caso contrário, por mês.
+ * Linhas «Pendente Criação» sem START PROCESSO não entram no gráfico.
+ */
+export function evolucaoIniciosPorStartProcesso(rows: ProcessoRow[]): StartProcessoEvolucaoPonto[] {
+  const startIso = (r: ProcessoRow): string | null => {
+    const v = parseDataIso((r.startProcesso ?? "").trim());
+    return v && DATA_ISO.test(v) ? v : null;
+  };
+
+  const criados = apenasProcessosComNumeroOficial(rows).filter((r) => startIso(r) != null);
+  const pendentes = rows.filter(isPendenteCriacaoProcesso).filter((r) => startIso(r) != null);
+
+  if (criados.length === 0 && pendentes.length === 0) return [];
+
+  const diasUnicos = new Set<string>();
+  for (const r of criados) {
+    const iso = startIso(r);
+    if (iso) diasUnicos.add(iso);
+  }
+  for (const r of pendentes) {
+    const iso = startIso(r);
+    if (iso) diasUnicos.add(iso);
+  }
+  const porDia = diasUnicos.size <= 45;
+
+  const map = new Map<
+    string,
+    { sortKey: string; label: string; detalhes: ProcessoInicioResumo[]; detalhesPendentes: ProcessoInicioResumo[] }
+  >();
+
+  for (const r of criados) {
+    const iso = startIso(r)!;
+    const bucketKey = porDia ? iso : iso.slice(0, 7);
+    const label = porDia ? labelDiaStartIso(iso) : labelMesStartYm(iso.slice(0, 7));
+    const ondeRaw = (r.onde ?? "").trim();
+    const onde = ondeRaw.length > 0 ? ondeRaw : ONDE_VAZIO_LABEL;
+    const cur =
+      map.get(bucketKey) ?? { sortKey: bucketKey, label, detalhes: [], detalhesPendentes: [] };
+    cur.detalhes.push({ processo: (r.processo ?? "").trim(), onde });
+    map.set(bucketKey, cur);
+  }
+
+  for (const r of pendentes) {
+    const iso = startIso(r)!;
+    const bucketKey = porDia ? iso : iso.slice(0, 7);
+    const label = porDia ? labelDiaStartIso(iso) : labelMesStartYm(iso.slice(0, 7));
+    const ondeRaw = (r.onde ?? "").trim();
+    const onde = ondeRaw.length > 0 ? ondeRaw : ONDE_VAZIO_LABEL;
+    const cur =
+      map.get(bucketKey) ?? { sortKey: bucketKey, label, detalhes: [], detalhesPendentes: [] };
+    cur.detalhesPendentes.push({ processo: (r.processo ?? "").trim(), onde });
+    map.set(bucketKey, cur);
+  }
+
+  const out: StartProcessoEvolucaoPonto[] = [...map.values()].map((v) => ({
+    sortKey: v.sortKey,
+    label: v.label,
+    quantidadeTotal: v.detalhes.length + v.detalhesPendentes.length,
+    quantidade: v.detalhes.length,
+    detalhes: [...v.detalhes].sort((a, b) => a.processo.localeCompare(b.processo, "pt-BR")),
+    quantidadePendentesCriacao: v.detalhesPendentes.length,
+    detalhesPendentesCriacao: [...v.detalhesPendentes].sort((a, b) =>
+      a.processo.localeCompare(b.processo, "pt-BR"),
+    ),
+  }));
+  out.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  return out;
 }

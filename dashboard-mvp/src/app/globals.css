@@ -13,14 +13,25 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-.login-field:-webkit-autofill,
-.login-field:-webkit-autofill:hover,
-.login-field:-webkit-autofill:focus,
-.login-field:-webkit-autofill:active {
+.login-field-dark:-webkit-autofill,
+.login-field-dark:-webkit-autofill:hover,
+.login-field-dark:-webkit-autofill:focus,
+.login-field-dark:-webkit-autofill:active {
   -webkit-text-fill-color: #f8fafc;
   caret-color: #f8fafc;
-  -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0) inset;
-  box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0) inset;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.8) inset;
+  box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.8) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.login-field-light:-webkit-autofill,
+.login-field-light:-webkit-autofill:hover,
+.login-field-light:-webkit-autofill:focus,
+.login-field-light:-webkit-autofill:active {
+  -webkit-text-fill-color: #0f172a;
+  caret-color: #0f172a;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.9) inset;
+  box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.9) inset;
   transition: background-color 9999s ease-in-out 0s;
 }
 

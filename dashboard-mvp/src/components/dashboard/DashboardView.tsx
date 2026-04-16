@@ -55,8 +55,14 @@ import {
   filterByAlocacaoFocal,
   filterByBloco,
   filterByStartProcessoRange,
+  formatOndeBucketLabel,
   endProcessoDonut,
   healthDonut,
+  processosCriadosPorFatiaAlerta,
+  processosCriadosPorFatiaAlocacaoFocal,
+  processosCriadosPorFatiaEndProcesso,
+  processosCriadosPorFatiaTermoEnc,
+  processosPorBucketOnde,
   kpisGlobais,
   resumoBloco,
   searchRows,
@@ -68,6 +74,9 @@ import {
 import { formatBRL, formatDataUltimaMovimentacaoBR } from "@/lib/format";
 import { exportResumoPlanilhaComoExcel } from "@/lib/exportResumoExcel";
 import { KpiDetailModal } from "@/components/dashboard/KpiDetailModal";
+import { KpiStandbyOndeModal } from "@/components/dashboard/KpiStandbyOndeModal";
+import { AlertaDonutDetalheModal } from "@/components/dashboard/AlertaDonutDetalheModal";
+import { KpiTotalStartEvolucaoModal } from "@/components/dashboard/KpiTotalStartEvolucaoModal";
 
 const COLORS = {
   pilares: "#2563eb",
@@ -96,13 +105,16 @@ const barChartTheme = {
 function MiniDonut({
   data,
   chartDark = false,
+  onSliceClick,
 }: {
   data: { name: string; value: number; color: string; count: number; total: number }[];
   chartDark?: boolean;
+  /** Quando definido, as fatias ficam clicáveis (ex.: donut de alertas). */
+  onSliceClick?: (sliceName: string) => void;
 }) {
   return (
-    <div className="h-[120px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-[120px] w-full min-w-[100px]">
+      <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={120}>
         <RechartsPieChart>
           <Pie
             data={data}
@@ -113,6 +125,12 @@ function MiniDonut({
             innerRadius={38}
             outerRadius={52}
             paddingAngle={2}
+            style={{ outline: "none", cursor: onSliceClick ? "pointer" : "default" }}
+            onClick={(_sector, index) => {
+              if (!onSliceClick || typeof index !== "number") return;
+              const item = data[index];
+              if (item?.name && item.name !== "Sem dados") onSliceClick(item.name);
+            }}
           >
             {data.map((e) => (
               <Cell key={e.name} fill={e.color} stroke="none" />
@@ -148,13 +166,15 @@ function MiniDonut({
 function MiniPie({
   data,
   chartDark = false,
+  onSliceClick,
 }: {
   data: { name: string; value: number; color: string; count: number; total: number }[];
   chartDark?: boolean;
+  onSliceClick?: (sliceName: string) => void;
 }) {
   return (
-    <div className="h-[120px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-[120px] w-full min-w-[100px]">
+      <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={120}>
         <RechartsPieChart>
           <Pie
             data={data}
@@ -165,6 +185,12 @@ function MiniPie({
             innerRadius={0}
             outerRadius={54}
             paddingAngle={1}
+            style={{ outline: "none", cursor: onSliceClick ? "pointer" : "default" }}
+            onClick={(_sector, index) => {
+              if (!onSliceClick || typeof index !== "number") return;
+              const item = data[index];
+              if (item?.name && item.name !== "Sem dados") onSliceClick(item.name);
+            }}
           >
             {data.map((e) => (
               <Cell key={e.name} fill={e.color} stroke="none" />
@@ -200,10 +226,12 @@ function OndeProcessoBars({
   rows,
   chartDark = false,
   barFill,
+  onBarClick,
 }: {
   rows: ProcessoRow[];
   chartDark?: boolean;
   barFill: string;
+  onBarClick?: (bucketNome: string) => void;
 }) {
   const t = chartDark ? barChartTheme.dark : barChartTheme.light;
   const chartRows = distribuicaoPorOnde(rows, 8, { uniformBarFill: barFill });
@@ -287,7 +315,9 @@ function OndeProcessoBars({
                 });
                 return (
                   <div className="max-w-[280px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">{d.name}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {formatOndeBucketLabel(d.name)}
+                    </p>
                     <p className="mt-2 space-y-1.5 text-slate-600 dark:text-slate-300">
                       <span className="block">
                         <span className="text-slate-500 dark:text-slate-400">Processos criados:</span>{" "}
@@ -326,7 +356,16 @@ function OndeProcessoBars({
                 );
               }}
             />
-            <Bar dataKey="v" barSize={barThickness} radius={[0, 12, 12, 0]}>
+            <Bar
+              dataKey="v"
+              barSize={barThickness}
+              radius={[0, 12, 12, 0]}
+              onClick={(data) => {
+                const nome = (data as { name?: string } | undefined)?.name;
+                if (onBarClick && nome) onBarClick(nome);
+              }}
+              style={{ cursor: onBarClick ? "pointer" : "default" }}
+            >
               {displayData.map((r, i) => (
                 <Cell
                   key={`${r.name}-${i}`}
@@ -352,12 +391,24 @@ function BlocoPanel({
   rows,
   headerIcon: HeaderIcon,
   chartDark = false,
+  onAlertaFatiaClick,
+  onAlocacaoFocalFatiaClick,
+  onTermoEncFatiaClick,
+  onOndeBarClick,
 }: {
   title: string;
   accent: string;
   rows: ProcessoRow[];
   headerIcon: LucideIcon;
   chartDark?: boolean;
+  /** Abre detalhe em tabela ao clicar numa fatia do donut «Alertas críticos». */
+  onAlertaFatiaClick?: (fatiaNome: string) => void;
+  /** Abre detalhe em tabela ao clicar na pizza ou legenda «Alocação focal». */
+  onAlocacaoFocalFatiaClick?: (fatiaNome: string) => void;
+  /** Abre detalhe em tabela ao clicar no donut/legenda «Distribuição termo enc.». */
+  onTermoEncFatiaClick?: (fatiaNome: string) => void;
+  /** Abre detalhe em tabela ao clicar numa barra do ranking «Onde está o processo?». */
+  onOndeBarClick?: (bucketNome: string) => void;
 }) {
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
@@ -512,20 +563,35 @@ function BlocoPanel({
           <PieChart className="h-3.5 w-3.5" />
           Alertas críticos
         </p>
-        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
-          <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
             {donut.map((d) => (
-              <li key={d.name} className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-slate-600 dark:text-white">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                  {d.name}
-                </span>
-                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+              <li key={d.name}>
+                <button
+                  type="button"
+                  disabled={!onAlertaFatiaClick || d.name === "Sem dados"}
+                  onClick={() => onAlertaFatiaClick?.(d.name)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left ${
+                    onAlertaFatiaClick && d.name !== "Sem dados"
+                      ? "cursor-pointer text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60"
+                      : "cursor-default text-slate-600 dark:text-white"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
+                    <span className="truncate">{d.name}</span>
+                  </span>
+                  <strong className="shrink-0 text-slate-900 dark:text-white">{d.value}%</strong>
+                </button>
               </li>
             ))}
           </ul>
-          <div className="mx-auto w-full max-w-[160px] sm:mx-0">
-            <MiniDonut data={donut} chartDark={chartDark} />
+          <div className="mx-auto w-full min-w-[120px] max-w-[160px] shrink-0 sm:mx-0">
+            <MiniDonut
+              data={donut}
+              chartDark={chartDark}
+              onSliceClick={onAlertaFatiaClick}
+            />
           </div>
         </div>
       </div>
@@ -540,20 +606,31 @@ function BlocoPanel({
         <p className="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
           Processos com número oficial; vazio na planilha conta como &quot;Não informado&quot;.
         </p>
-        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
-          <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
             {focalSlices.map((d) => (
-              <li key={d.name} className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-slate-600 dark:text-white">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                  {d.name}
-                </span>
-                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+              <li key={d.name}>
+                <button
+                  type="button"
+                  disabled={!onAlocacaoFocalFatiaClick || d.name === "Sem dados"}
+                  onClick={() => onAlocacaoFocalFatiaClick?.(d.name)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left ${
+                    onAlocacaoFocalFatiaClick && d.name !== "Sem dados"
+                      ? "cursor-pointer text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60"
+                      : "cursor-default text-slate-600 dark:text-white"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
+                    <span className="truncate">{d.name}</span>
+                  </span>
+                  <strong className="shrink-0 text-slate-900 dark:text-white">{d.value}%</strong>
+                </button>
               </li>
             ))}
           </ul>
-          <div className="mx-auto w-full max-w-[160px] sm:mx-0">
-            <MiniPie data={focalSlices} chartDark={chartDark} />
+          <div className="mx-auto w-full min-w-[120px] max-w-[160px] shrink-0 sm:mx-0">
+            <MiniPie data={focalSlices} chartDark={chartDark} onSliceClick={onAlocacaoFocalFatiaClick} />
           </div>
         </div>
       </div>
@@ -562,25 +639,36 @@ function BlocoPanel({
           <PieChart className="h-3.5 w-3.5" />
           Distribuição termo enc.
         </p>
-        <div className="flex flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
-          <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
             {termoEncSlices.map((d) => (
-              <li key={d.name} className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-slate-600 dark:text-white">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                  {d.name}
-                </span>
-                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+              <li key={d.name}>
+                <button
+                  type="button"
+                  disabled={!onTermoEncFatiaClick || d.name === "Sem dados"}
+                  onClick={() => onTermoEncFatiaClick?.(d.name)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left ${
+                    onTermoEncFatiaClick && d.name !== "Sem dados"
+                      ? "cursor-pointer text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60"
+                      : "cursor-default text-slate-600 dark:text-white"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
+                    <span className="truncate">{d.name}</span>
+                  </span>
+                  <strong className="shrink-0 text-slate-900 dark:text-white">{d.value}%</strong>
+                </button>
               </li>
             ))}
           </ul>
-          <div className="mx-auto w-full max-w-[160px] sm:mx-0">
-            <MiniDonut data={termoEncSlices} chartDark={chartDark} />
+          <div className="mx-auto w-full min-w-[120px] max-w-[160px] shrink-0 sm:mx-0">
+            <MiniDonut data={termoEncSlices} chartDark={chartDark} onSliceClick={onTermoEncFatiaClick} />
           </div>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-4">
-        <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} />
+        <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} onBarClick={onOndeBarClick} />
       </div>
     </article>
   );
@@ -666,7 +754,13 @@ export default function DashboardView() {
   const [startProcessoAte, setStartProcessoAte] = useState("");
   const [alocacaoFocalFiltro, setAlocacaoFocalFiltro] = useState<AlocacaoFocalFiltro>("todos");
   const [lastUpdate, setLastUpdate] = useState(() => new Date());
-  const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd">(null);
+  const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd" | "standbyOnde" | "totalStartEvolucao">(null);
+  const [alertaFatiaDetalhe, setAlertaFatiaDetalhe] = useState<null | {
+    kind: "alertas" | "alocacaoFocal" | "termoEnc" | "onde" | "endProcesso";
+    blocoTitulo: string;
+    fatiaNome: string;
+    rows: ProcessoRow[];
+  }>(null);
   /** null = ainda não leu localStorage (evita gravar "light" antes da preferência real). */
   const [darkMode, setDarkMode] = useState<boolean | null>(null);
   /** Dados vindos de `/api/processos` (CSV no Drive). `undefined` = ainda a carregar. */
@@ -703,11 +797,21 @@ export default function DashboardView() {
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
       const data = (await res.json()) as ProcessosApiResponse;
+      const stamp = data.updatedAt ?? new Date().toISOString();
       if (!res.ok) {
+        setRemoteProcessos(null);
+        setServerUpdatedAtIso(stamp);
+        setDataSourceLabel(
+          res.status === 401
+            ? "Não autorizado — atualize a página ou entre de novo."
+            : data.message?.trim()
+              ? `API: ${data.message}`
+              : `Erro ao carregar dados (${res.status}).`,
+        );
         setLastUpdate(new Date());
         return false;
       }
-      if (data.updatedAt) setServerUpdatedAtIso(data.updatedAt);
+      setServerUpdatedAtIso(stamp);
       if (data.rows && data.rows.length > 0) {
         setRemoteProcessos(data.rows);
         setDataSourceLabel(
@@ -769,7 +873,7 @@ export default function DashboardView() {
             kpis.pendenteCriacao > 0
               ? `${kpis.pendenteCriacao} pendente${kpis.pendenteCriacao > 1 ? "s" : ""} de criação`
               : "",
-          modal: null as null,
+          modal: "totalStartEvolucao" as const,
         },
         {
           label: "Alertas críticos",
@@ -805,7 +909,7 @@ export default function DashboardView() {
             kpis.pendenteCriacao > 0
               ? `${kpis.pendenteCriacao} processo${kpis.pendenteCriacao > 1 ? "s" : ""} fora do cálculo`
               : "média",
-          modal: null as null,
+          modal: "standbyOnde" as const,
         },
         {
           label: "Tempo médio em curso",
@@ -1147,7 +1251,13 @@ export default function DashboardView() {
                   type="button"
                   onClick={() => setKpiModal(k.modal)}
                   className={`${cardClass} m-0 cursor-pointer appearance-none font-inherit transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
-                  title="Clique para ver a lista de processos"
+                  title={
+                    k.modal === "standbyOnde"
+                      ? "Ver ranking de standby por local (onde está o processo)"
+                      : k.modal === "totalStartEvolucao"
+                        ? "Ver evolução dos inícios por START PROCESSO"
+                        : "Clique para ver a lista de processos"
+                  }
                 >
                   {body}
                 </button>
@@ -1177,6 +1287,28 @@ export default function DashboardView() {
           pilares={pilaresSemEnd}
           psi={psiSemEnd}
         />
+        <KpiStandbyOndeModal
+          open={kpiModal === "standbyOnde"}
+          onClose={() => setKpiModal(null)}
+          rows={allForKpi}
+          chartDark={darkMode === true}
+        />
+        <KpiTotalStartEvolucaoModal
+          open={kpiModal === "totalStartEvolucao"}
+          onClose={() => setKpiModal(null)}
+          rows={allForKpi}
+          chartDark={darkMode === true}
+        />
+        {alertaFatiaDetalhe ? (
+          <AlertaDonutDetalheModal
+            open
+            onClose={() => setAlertaFatiaDetalhe(null)}
+            kind={alertaFatiaDetalhe.kind}
+            blocoTitulo={alertaFatiaDetalhe.blocoTitulo}
+            fatiaNome={alertaFatiaDetalhe.fatiaNome}
+            rows={alertaFatiaDetalhe.rows}
+          />
+        ) : null}
 
         {/* Três colunas PILARES | PSI | CONSOLIDADO — mesma altura para alinhar gráficos */}
         <section className="mb-8 grid gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -1186,6 +1318,38 @@ export default function DashboardView() {
             rows={pilaresRows}
             headerIcon={Layers}
             chartDark={darkMode === true}
+            onAlertaFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alertas",
+                blocoTitulo: "PILARES",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlerta(pilaresRows, fatiaNome),
+              })
+            }
+            onAlocacaoFocalFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alocacaoFocal",
+                blocoTitulo: "PILARES",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlocacaoFocal(pilaresRows, fatiaNome),
+              })
+            }
+            onTermoEncFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "termoEnc",
+                blocoTitulo: "PILARES",
+                fatiaNome,
+                rows: processosCriadosPorFatiaTermoEnc(pilaresRows, fatiaNome),
+              })
+            }
+            onOndeBarClick={(bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "onde",
+                blocoTitulo: "PILARES",
+                fatiaNome: bucketNome,
+                rows: processosPorBucketOnde(pilaresRows, bucketNome),
+              })
+            }
           />
           <BlocoPanel
             title="PSI"
@@ -1193,6 +1357,38 @@ export default function DashboardView() {
             rows={psiRows}
             headerIcon={Briefcase}
             chartDark={darkMode === true}
+            onAlertaFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alertas",
+                blocoTitulo: "PSI",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlerta(psiRows, fatiaNome),
+              })
+            }
+            onAlocacaoFocalFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alocacaoFocal",
+                blocoTitulo: "PSI",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlocacaoFocal(psiRows, fatiaNome),
+              })
+            }
+            onTermoEncFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "termoEnc",
+                blocoTitulo: "PSI",
+                fatiaNome,
+                rows: processosCriadosPorFatiaTermoEnc(psiRows, fatiaNome),
+              })
+            }
+            onOndeBarClick={(bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "onde",
+                blocoTitulo: "PSI",
+                fatiaNome: bucketNome,
+                rows: processosPorBucketOnde(psiRows, bucketNome),
+              })
+            }
           />
           <BlocoPanel
             title="CONSOLIDADO"
@@ -1200,6 +1396,38 @@ export default function DashboardView() {
             rows={filtered}
             headerIcon={LayoutGrid}
             chartDark={darkMode === true}
+            onAlertaFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alertas",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlerta(filtered, fatiaNome),
+              })
+            }
+            onAlocacaoFocalFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "alocacaoFocal",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome,
+                rows: processosCriadosPorFatiaAlocacaoFocal(filtered, fatiaNome),
+              })
+            }
+            onTermoEncFatiaClick={(fatiaNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "termoEnc",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome,
+                rows: processosCriadosPorFatiaTermoEnc(filtered, fatiaNome),
+              })
+            }
+            onOndeBarClick={(bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "onde",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome: bucketNome,
+                rows: processosPorBucketOnde(filtered, bucketNome),
+              })
+            }
           />
         </section>
 
@@ -1243,26 +1471,48 @@ export default function DashboardView() {
                         <Clock className="h-3 w-3 shrink-0" aria-hidden />
                         END processo
                       </p>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <ul className="min-w-[120px] flex-1 space-y-1.5 text-xs">
+                      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+                        <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
                           {endDonut.map((d) => (
-                            <li
-                              key={d.name}
-                              className="flex items-center justify-between gap-2 text-slate-600 dark:text-white"
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <span
-                                  className="h-2 w-2 rounded-full"
-                                  style={{ background: d.color }}
-                                />
-                                {d.name}
-                              </span>
-                              <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+                            <li key={d.name}>
+                              <button
+                                type="button"
+                                disabled={d.name === "Sem dados"}
+                                onClick={() =>
+                                  setAlertaFatiaDetalhe({
+                                    kind: "endProcesso",
+                                    blocoTitulo: label,
+                                    fatiaNome: d.name,
+                                    rows: processosCriadosPorFatiaEndProcesso(rows, d.name),
+                                  })
+                                }
+                                className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <span
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ background: d.color }}
+                                  />
+                                  {d.name}
+                                </span>
+                                <strong className="text-slate-900 dark:text-white">{d.value}%</strong>
+                              </button>
                             </li>
                           ))}
                         </ul>
-                        <div className="mx-auto w-full max-w-[160px] sm:mx-0">
-                          <MiniDonut data={endDonut} chartDark={darkMode === true} />
+                        <div className="mx-auto w-full min-w-[120px] max-w-[160px] shrink-0 sm:mx-0">
+                          <MiniDonut
+                            data={endDonut}
+                            chartDark={darkMode === true}
+                            onSliceClick={(fatiaNome) =>
+                              setAlertaFatiaDetalhe({
+                                kind: "endProcesso",
+                                blocoTitulo: label,
+                                fatiaNome,
+                                rows: processosCriadosPorFatiaEndProcesso(rows, fatiaNome),
+                              })
+                            }
+                          />
                         </div>
                       </div>
                     </div>

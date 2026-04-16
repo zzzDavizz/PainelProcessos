@@ -52,18 +52,39 @@ function parseValorCell(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseDataIso(s: string): string | null {
+/**
+ * Normaliza células de data para `YYYY-MM-DD` (ou `null` se não for reconhecível).
+ * Aceita ISO com hora, `DD/MM/AAAA` (planilha PT) e `MM/DD/AAAA` quando o 2.º grupo > 12.
+ */
+export function parseDataIso(s: string): string | null {
   const t = (s || "").trim();
   if (!t) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const isoPrefix = t.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (isoPrefix) return isoPrefix[1];
+  const m = t.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
   if (m) {
-    const d = m[1].padStart(2, "0");
-    const mo = m[2].padStart(2, "0");
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
     const y = m[3];
-    return `${y}-${mo}-${d}`;
+    let day: string;
+    let month: string;
+    if (a > 12) {
+      day = m[1].padStart(2, "0");
+      month = m[2].padStart(2, "0");
+    } else if (b > 12) {
+      month = m[1].padStart(2, "0");
+      day = m[2].padStart(2, "0");
+    } else {
+      day = m[1].padStart(2, "0");
+      month = m[2].padStart(2, "0");
+    }
+    const mm = parseInt(month, 10);
+    const dd = parseInt(day, 10);
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+    return `${y}-${month}-${day}`;
   }
-  return t;
+  return null;
 }
 
 function mapAlerta(raw: string): AlertaNivel {
