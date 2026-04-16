@@ -15,6 +15,14 @@ export type AuthSession = {
   exp: number;
 };
 
+/** Indica se login e cookies de sessão podem ser validados (útil em deploy sem .env). */
+export function isAuthEnvConfigured(): boolean {
+  const username = process.env.AUTH_LOGIN_USERNAME?.trim();
+  const password = process.env.AUTH_LOGIN_PASSWORD?.trim();
+  const secret = process.env.AUTH_SESSION_SECRET?.trim();
+  return Boolean(username && password && secret);
+}
+
 function readAuthEnv(): AuthEnv {
   const username = process.env.AUTH_LOGIN_USERNAME?.trim();
   const password = process.env.AUTH_LOGIN_PASSWORD?.trim();

@@ -13,6 +13,22 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+.login-field:-webkit-autofill,
+.login-field:-webkit-autofill:hover,
+.login-field:-webkit-autofill:focus,
+.login-field:-webkit-autofill:active {
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0) inset;
+  box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.login-field::selection {
+  background: rgba(52, 211, 153, 0.28);
+  color: #f8fafc;
+}
+
 /* Tema escuro do painel: só o subtree com data-dashboard-theme (ver tailwind.config). */
 [data-dashboard-theme="dark"] {
   color-scheme: dark;

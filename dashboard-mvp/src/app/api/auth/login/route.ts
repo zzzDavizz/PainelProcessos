@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   buildSessionCookie,
   createSessionToken,
+  isAuthEnvConfigured,
   isValidLogin,
   normalizeNextPath,
 } from "@/lib/auth";
@@ -14,6 +15,16 @@ type LoginBody = {
 
 export async function POST(request: Request) {
   try {
+    if (!isAuthEnvConfigured()) {
+      return NextResponse.json(
+        {
+          message:
+            "Autenticação não configurada no servidor. Defina AUTH_LOGIN_USERNAME, AUTH_LOGIN_PASSWORD e AUTH_SESSION_SECRET nas variáveis de ambiente (ex.: Vercel → Settings → Environment Variables).",
+        },
+        { status: 503 },
+      );
+    }
+
     const body = (await request.json()) as LoginBody;
     const username = body.username?.trim() ?? "";
     const password = body.password ?? "";
