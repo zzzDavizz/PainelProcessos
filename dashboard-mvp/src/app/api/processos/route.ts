@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionFromCookies } from "@/lib/auth";
 import { parseResumoPainelCsv } from "@/lib/parseResumoCsv";
 
 /** Esta rota só devolve dados em tempo real; nunca resposta estática em cache. */
@@ -26,6 +27,11 @@ function jsonResponse(body: unknown, init?: { status?: number }) {
 }
 
 export async function GET() {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    return jsonResponse({ message: "Não autorizado." }, { status: 401 });
+  }
+
   const url = process.env.PAINEL_CSV_URL?.trim();
   if (!url) {
     return jsonResponse({

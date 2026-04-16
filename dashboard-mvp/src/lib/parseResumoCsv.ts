@@ -75,49 +75,124 @@ function mapAlerta(raw: string): AlertaNivel {
   return "OK";
 }
 
+type ProcessoField = Exclude<keyof ProcessoRow, "bloco">;
+
+type HeaderMap = Partial<Record<ProcessoField, number>> & {
+  situacaoFallback: number | null;
+};
+
+const HEADER_ALIASES: Record<ProcessoField, string[]> = {
+  processo: ["PROCESSO"],
+  item: ["ITEM OBJETO SIMPLIFICADO"],
+  valor: ["VALOR"],
+  onde: ["ONDE ESTA O PROCESSO"],
+  ultimaMovimentacao: ["ULTIMA MOVIMENTACAO"],
+  standByDias: ["STAND BY", "STANDBY", "STAND BY DIAS"],
+  alerta: ["ALERTA CRIT", "ALERTA", "ALERTA CRITICO"],
+  startProcesso: ["START PROCESSO"],
+  endProcesso: ["END PROCESSO"],
+  diasEmCurso: ["DIAS EM CURSO"],
+  termoEnc: ["TERMO ENC", "TERMO ENCERRAMENTO"],
+  responsavel: ["RESPONSAVEL"],
+  alocacaoFocal: ["ALOCACAO FOCAL"],
+  situacao: ["SITUACAO DOS PROCESSOS", "SITUACAO"],
+};
+
+function normalizeHeaderCell(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function meaningfulCells(cols: string[]): string[] {
+  return cols.map((cell) => normalizeHeaderCell(cell)).filter(Boolean);
+}
+
+function findHeaderIndex(normalizedCols: string[], aliases: string[]): number | null {
+  for (let i = 0; i < normalizedCols.length; i++) {
+    if (aliases.includes(normalizedCols[i])) return i;
+  }
+  return null;
+}
+
 function isHeaderRow(cols: string[]): boolean {
-  const a = (cols[0] || "").trim().toUpperCase();
-  const b = (cols[1] || "").toUpperCase();
-  return a === "PROCESSO" && b.includes("ITEM");
+  const normalized = meaningfulCells(cols);
+  return normalized.includes("PROCESSO") && normalized.includes("ITEM OBJETO SIMPLIFICADO");
+}
+
+function buildHeaderMap(cols: string[]): HeaderMap {
+  const normalized = cols.map((cell) => normalizeHeaderCell(cell));
+  const map: HeaderMap = { situacaoFallback: null };
+
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES) as Array<[ProcessoField, string[]]>) {
+    const index = findHeaderIndex(normalized, aliases);
+    if (index != null) map[field] = index;
+  }
+
+  if (map.situacao == null && map.valor != null) {
+    for (let i = map.valor - 1; i >= 0; i--) {
+      if ((cols[i] ?? "").trim() === "") {
+        map.situacaoFallback = i;
+        break;
+      }
+    }
+  }
+
+  return map;
+}
+
+function detectSectionBanner(cols: string[]): Bloco | null {
+  const normalized = meaningfulCells(cols);
+  if (normalized.length === 0) return null;
+  if (normalized.length <= 2 && normalized.includes("PILARES")) return "PILARES";
+  if (normalized.length <= 2 && normalized.includes("PSI")) return "PSI";
+  return null;
 }
 
 /** Linha só com totais (ex.: `;;;117943909.94`). */
-function isTotalRow(cols: string[]): boolean {
-  const p = (cols[0] || "").trim();
-  const it = (cols[1] || "").trim();
-  if (p || it) return false;
-  const v = (cols[3] || "").trim();
-  if (!v) return false;
-  return /^-?\d+(\.\d+)?$/.test(v.replace(",", "."));
+function isTotalRow(cols: string[], headerMap: HeaderMap | null): boolean {
+  const pad = (i: number | null | undefined) => (i == null ? "" : (cols[i] ?? "").trim());
+  const processo = pad(headerMap?.processo);
+  const item = pad(headerMap?.item);
+  if (processo || item) return false;
+
+  const valor = pad(headerMap?.valor);
+  const nonEmpty = cols.map((cell) => cell.trim()).filter(Boolean);
+  if (!valor) return nonEmpty.length === 1 && parseValorCell(nonEmpty[0]) != null;
+  return parseValorCell(valor) != null && nonEmpty.length <= 2;
 }
 
-/** Título PSI em célula mesclada (texto longo mas contém só "PSI" como secção). */
-function isPsiSectionBanner(cols: string[]): boolean {
-  const a = (cols[0] || "").trim();
-  if (/^PSI$/i.test(a)) return false;
-  return /\bPSI\b/i.test(a) && !isHeaderRow(cols);
-}
+function rowToProcesso(cols: string[], bloco: Bloco, headerMap: HeaderMap): ProcessoRow | null {
+  const pad = (field: ProcessoField) => {
+    const index = headerMap[field];
+    return index == null ? "" : (cols[index] ?? "").trim();
+  };
 
-function rowToProcesso(cols: string[], bloco: Bloco): ProcessoRow | null {
-  const pad = (i: number) => (cols[i] ?? "").trim();
-  const processo = pad(0);
-  const item = pad(1);
+  const processo = pad("processo");
+  const item = pad("item");
   if (!processo && !item) return null;
   if (/^PILARES$/i.test(processo) || /^PSI$/i.test(processo)) return null;
-  if (isHeaderRow(cols) || isTotalRow(cols)) return null;
+  if (isHeaderRow(cols) || isTotalRow(cols, headerMap)) return null;
 
-  const valor = parseValorCell(pad(3));
-  const onde = pad(4);
-  const ultimaMovimentacao = parseDataIso(pad(5)) ?? "";
-  const standByDias = parseNumDias(pad(6));
-  const alerta = mapAlerta(pad(7));
-  const startProcesso = parseDataIso(pad(8));
-  const endProcesso = parseDataIso(pad(9));
-  const diasEmCurso = parseNumDias(pad(10));
-  const termoEnc = pad(11) || "—";
-  const responsavel = pad(12) || null;
-  const alocacaoFocal = pad(13) || null;
-  const situacao = pad(14) || "";
+  const valor = parseValorCell(pad("valor"));
+  const onde = pad("onde");
+  const ultimaMovimentacao = parseDataIso(pad("ultimaMovimentacao")) ?? "";
+  const standByDias = parseNumDias(pad("standByDias"));
+  const alerta = mapAlerta(pad("alerta"));
+  const startProcesso = parseDataIso(pad("startProcesso"));
+  const endProcesso = parseDataIso(pad("endProcesso"));
+  const diasEmCurso = parseNumDias(pad("diasEmCurso"));
+  const termoEnc = pad("termoEnc") || "—";
+  const responsavel = pad("responsavel") || null;
+  const alocacaoFocal = pad("alocacaoFocal") || null;
+  const situacaoExplicit = pad("situacao");
+  const situacaoFallback =
+    headerMap.situacaoFallback == null ? "" : (cols[headerMap.situacaoFallback] ?? "").trim();
+  const situacao = situacaoExplicit || situacaoFallback || "";
 
   return {
     bloco,
@@ -145,27 +220,25 @@ export function parseResumoPainelCsv(text: string): ProcessoRow[] {
   const matrix = parseCsvSemicolon(text);
   const out: ProcessoRow[] = [];
   let bloco: Bloco = "PILARES";
+  let headerMap: HeaderMap | null = null;
 
   for (const cols of matrix) {
-    if (cols.length < 8) continue;
-
-    const titulo = (cols[0] ?? "").trim();
-    if (/^PILARES$/i.test(titulo)) {
-      bloco = "PILARES";
-      continue;
-    }
-    if (/^PSI$/i.test(titulo) || isPsiSectionBanner(cols)) {
-      bloco = "PSI";
+    const detectedBloco = detectSectionBanner(cols);
+    if (detectedBloco) {
+      bloco = detectedBloco;
+      headerMap = null;
       continue;
     }
 
     if (isHeaderRow(cols)) {
+      headerMap = buildHeaderMap(cols);
       continue;
     }
 
-    if (isTotalRow(cols)) continue;
+    if (!headerMap) continue;
+    if (isTotalRow(cols, headerMap)) continue;
 
-    const row = rowToProcesso(cols, bloco);
+    const row = rowToProcesso(cols, bloco, headerMap);
     if (row) out.push(row);
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Bar,
   BarChart,
@@ -24,6 +25,7 @@ import {
   LayoutGrid,
   Layers,
   ListOrdered,
+  LogOut,
   Moon,
   MoreHorizontal,
   PieChart,
@@ -850,6 +852,14 @@ export default function DashboardView() {
     }, ok ? 2200 : 2600);
   }, [loadProcessos]);
 
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
+  }, []);
+
   const onStartProcessoDeChange = (e: ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setStartProcessoDe(v);
@@ -898,9 +908,11 @@ export default function DashboardView() {
         <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <div className="h-14 w-[9.5rem] shrink-0 sm:h-16 sm:w-[11.5rem] lg:w-[13rem]">
-              <img
+              <Image
                 src="/interpi-45-anos-logo-wide.png"
                 alt="Logo 45 anos INTERPI"
+                width={1024}
+                height={270}
                 className="block h-full w-full object-contain"
               />
             </div>
@@ -986,6 +998,15 @@ export default function DashboardView() {
               }
             >
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="inline-flex min-w-[6.5rem] items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/15 px-3 py-2.5 text-xs font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-white/25 dark:border-white/20 dark:bg-white/10 dark:text-white dark:shadow-none dark:hover:bg-white/15"
+              title="Encerrar sessão"
+            >
+              <LogOut className="h-4 w-4 shrink-0" aria-hidden />
+              Sair
             </button>
             </div>
             <div
