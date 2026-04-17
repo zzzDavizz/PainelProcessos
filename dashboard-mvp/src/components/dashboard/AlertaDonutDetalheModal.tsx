@@ -52,7 +52,7 @@ function AlertaFatiaTabelaBloco({
                   PROCESSO
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  VALOR
+                  VALOR TOTAL
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   ONDE ESTÁ O PROCESSO?

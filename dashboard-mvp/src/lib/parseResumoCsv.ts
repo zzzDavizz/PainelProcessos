@@ -100,12 +100,13 @@ type ProcessoField = Exclude<keyof ProcessoRow, "bloco">;
 
 type HeaderMap = Partial<Record<ProcessoField, number>> & {
   situacaoFallback: number | null;
+  contabilizar: number | null;
 };
 
 const HEADER_ALIASES: Record<ProcessoField, string[]> = {
   processo: ["PROCESSO"],
   item: ["ITEM OBJETO SIMPLIFICADO"],
-  valor: ["VALOR"],
+  valor: ["VALOR TOTAL", "VALOR"],
   onde: ["ONDE ESTA O PROCESSO"],
   ultimaMovimentacao: ["ULTIMA MOVIMENTACAO"],
   standByDias: ["STAND BY", "STANDBY", "STAND BY DIAS"],
@@ -134,8 +135,10 @@ function meaningfulCells(cols: string[]): string[] {
 }
 
 function findHeaderIndex(normalizedCols: string[], aliases: string[]): number | null {
-  for (let i = 0; i < normalizedCols.length; i++) {
-    if (aliases.includes(normalizedCols[i])) return i;
+  for (const alias of aliases) {
+    for (let i = 0; i < normalizedCols.length; i++) {
+      if (normalizedCols[i] === alias) return i;
+    }
   }
   return null;
 }
@@ -147,12 +150,18 @@ function isHeaderRow(cols: string[]): boolean {
 
 function buildHeaderMap(cols: string[]): HeaderMap {
   const normalized = cols.map((cell) => normalizeHeaderCell(cell));
-  const map: HeaderMap = { situacaoFallback: null };
+  const map: HeaderMap = { situacaoFallback: null, contabilizar: null };
 
   for (const [field, aliases] of Object.entries(HEADER_ALIASES) as Array<[ProcessoField, string[]]>) {
     const index = findHeaderIndex(normalized, aliases);
     if (index != null) map[field] = index;
   }
+
+  map.contabilizar = findHeaderIndex(normalized, [
+    "DADOS DEVEM CONTABILIZAR",
+    "DADOS DEVEM CONTABILIZAR ?",
+    "DADOS DEVEM CONTABILIZAR?",
+  ]);
 
   if (map.situacao == null && map.valor != null) {
     for (let i = map.valor - 1; i >= 0; i--) {
@@ -164,6 +173,19 @@ function buildHeaderMap(cols: string[]): HeaderMap {
   }
 
   return map;
+}
+
+function shouldIncludeRow(cols: string[], headerMap: HeaderMap): boolean {
+  const idx = headerMap.contabilizar;
+  if (idx == null) return true;
+  const raw = (cols[idx] ?? "").trim();
+  if (!raw) return true;
+  const normalized = raw
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return normalized !== "nao";
 }
 
 function detectSectionBanner(cols: string[]): Bloco | null {
@@ -258,6 +280,7 @@ export function parseResumoPainelCsv(text: string): ProcessoRow[] {
 
     if (!headerMap) continue;
     if (isTotalRow(cols, headerMap)) continue;
+    if (!shouldIncludeRow(cols, headerMap)) continue;
 
     const row = rowToProcesso(cols, bloco, headerMap);
     if (row) out.push(row);

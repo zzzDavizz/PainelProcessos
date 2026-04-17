@@ -339,7 +339,7 @@ function OndeProcessoBars({
                         </span>
                       ) : null}
                       <span className="block">
-                        <span className="text-slate-500 dark:text-slate-400">Valor (coluna VALOR):</span>{" "}
+                        <span className="text-slate-500 dark:text-slate-400">Valor (coluna VALOR TOTAL):</span>{" "}
                         <strong className="text-slate-900 dark:text-white">
                           {formatBRL(d.valorTotal)}
                         </strong>
@@ -542,7 +542,7 @@ function BlocoPanel({
         <div className="col-span-2 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/60">
           <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
             <Wallet className="h-3.5 w-3.5 shrink-0" />
-            Valor total (soma da coluna VALOR neste bloco)
+            Valor total (soma da coluna VALOR TOTAL neste bloco)
           </p>
           <p className="text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">
             {formatBRL(valorTotalCard)}

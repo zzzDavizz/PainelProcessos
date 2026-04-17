@@ -18,7 +18,7 @@ function formatDataBR(iso: string): string {
 const COLS = [
   { key: "processo" as const, label: "Processo" },
   { key: "item" as const, label: "ITEM/OBJETO - SIMPLIFICADO" },
-  { key: "valor" as const, label: "VALOR" },
+  { key: "valor" as const, label: "VALOR TOTAL" },
   { key: "onde" as const, label: "ONDE ESTÁ O PROCESSO?" },
   { key: "ultimaMovimentacao" as const, label: "ÚLTIMA MOVIMENTAÇÃO" },
   { key: "responsavel" as const, label: "RESPONSÁVEL" },
