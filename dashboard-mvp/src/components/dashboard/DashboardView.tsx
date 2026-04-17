@@ -1555,10 +1555,10 @@ export default function DashboardView() {
           <button
             type="button"
             onClick={() => setActiveTab("overview-processos")}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-out ${
               activeTab === "overview-processos"
-                ? "bg-slate-900 text-white dark:bg-cyan-500 dark:text-slate-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
+                ? "translate-y-0 scale-100 bg-slate-900 text-white shadow-md shadow-slate-300/60 dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/20"
+                : "translate-y-[1px] scale-[0.985] border border-slate-200 bg-white text-slate-700 hover:-translate-y-[1px] hover:scale-100 hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
           >
             Overview de Processos
@@ -1566,10 +1566,10 @@ export default function DashboardView() {
           <button
             type="button"
             onClick={() => setActiveTab("gestao-componentes")}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-out ${
               activeTab === "gestao-componentes"
-                ? "bg-slate-900 text-white dark:bg-cyan-500 dark:text-slate-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
+                ? "translate-y-0 scale-100 bg-slate-900 text-white shadow-md shadow-slate-300/60 dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/20"
+                : "translate-y-[1px] scale-[0.985] border border-slate-200 bg-white text-slate-700 hover:-translate-y-[1px] hover:scale-100 hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
           >
             Gestão $$ de componentes
