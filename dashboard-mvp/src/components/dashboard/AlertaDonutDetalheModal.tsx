@@ -16,6 +16,16 @@ function formatStartProcessoBR(iso: string | null | undefined): string {
   return s;
 }
 
+function formatDateAllowBlank(value: string | null | undefined): string {
+  const s = (value ?? "").trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, mo, da] = s.split("-");
+    return `${da}/${mo}/${y}`;
+  }
+  return s;
+}
+
 function ondeLabel(r: ProcessoRow) {
   const t = (r.onde ?? "").trim();
   return t.length > 0 ? t : ONDE_VAZIO_LABEL;
@@ -49,6 +59,9 @@ function AlertaFatiaTabelaBloco({
             <thead>
               <tr className="bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                  STATUS
+                </th>
+                <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   PROCESSO
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
@@ -59,6 +72,9 @@ function AlertaFatiaTabelaBloco({
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   ÚLTIMA MOVIMENTAÇÃO
+                </th>
+                <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                  MAP. DATA ALVO
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   START PROCESSO
@@ -76,6 +92,13 @@ function AlertaFatiaTabelaBloco({
                     idx % 2 === 0 ? "bg-white dark:bg-slate-950" : "bg-slate-50/80 dark:bg-slate-900/80"
                   }
                 >
+                  <td className="max-w-[140px] border border-slate-200 px-2 py-1.5 align-top text-slate-700 dark:border-slate-700 dark:text-slate-300">
+                    {r.status?.trim() ? (
+                      <span className="line-clamp-2 break-words">{r.status.trim()}</span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-600">—</span>
+                    )}
+                  </td>
                   <td className="max-w-[200px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     <span className="line-clamp-3 break-words">{r.processo}</span>
                   </td>
@@ -87,6 +110,9 @@ function AlertaFatiaTabelaBloco({
                   </td>
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}
+                  </td>
+                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
+                    {formatDateAllowBlank(r.proximaDataAlvo)}
                   </td>
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {formatStartProcessoBR(r.startProcesso)}
@@ -104,7 +130,15 @@ function AlertaFatiaTabelaBloco({
   );
 }
 
-export type AlertaDonutDetalheKind = "alertas" | "alocacaoFocal" | "termoEnc" | "onde" | "endProcesso";
+export type AlertaDonutDetalheKind =
+  | "alertas"
+  | "alocacaoFocal"
+  | "componente"
+  | "dfdTrd"
+  | "termoEnc"
+  | "onde"
+  | "endProcesso"
+  | "status";
 
 export type AlertaDonutDetalheModalProps = {
   open: boolean;
@@ -176,6 +210,14 @@ export function AlertaDonutDetalheModal({
                 <>
                   Alocação focal — <span className="font-semibold">{fatiaNome}</span>
                 </>
+              ) : kind === "componente" ? (
+                <>
+                  Processos do componente — <span className="font-semibold">{fatiaNome}</span>
+                </>
+              ) : kind === "dfdTrd" ? (
+                <>
+                  DFD / TRD — <span className="font-semibold">{fatiaNome}</span>
+                </>
               ) : kind === "termoEnc" ? (
                 <>
                   Distribuição termo enc. — <span className="font-semibold">{fatiaNome}</span>
@@ -187,6 +229,10 @@ export function AlertaDonutDetalheModal({
               ) : kind === "endProcesso" ? (
                 <>
                   END processo — <span className="font-semibold">{fatiaNome}</span>
+                </>
+              ) : kind === "status" ? (
+                <>
+                  Status — <span className="font-semibold">{fatiaNome}</span>
                 </>
               ) : (
                 <>
@@ -211,6 +257,40 @@ export function AlertaDonutDetalheModal({
                   <>
                     Processos com número oficial na categoria <strong className="font-semibold">{fatiaNome}</strong>{" "}
                     (coluna ALOCAÇÃO FOCAL): {rows.length} {rows.length === 1 ? "linha" : "linhas"}.
+                  </>
+                )
+              ) : kind === "componente" ? (
+                isConsolidado ? (
+                  <>
+                    Processos do componente <strong className="font-semibold">{fatiaNome}</strong>, com a coluna{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">MAP. DATA ALVO</strong>,{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">
+                      separados por PILARES e PSI
+                    </strong>{" "}
+                    (total {rows.length} {rows.length === 1 ? "linha" : "linhas"}). Células sem data permanecem vazias.
+                  </>
+                ) : (
+                  <>
+                    Processos do componente <strong className="font-semibold">{fatiaNome}</strong>, com a coluna{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">MAP. DATA ALVO</strong>:{" "}
+                    {rows.length} {rows.length === 1 ? "linha" : "linhas"}. Células sem data permanecem vazias.
+                  </>
+                )
+              ) : kind === "dfdTrd" ? (
+                isConsolidado ? (
+                  <>
+                    Processos criados da categoria <strong className="font-semibold">{fatiaNome}</strong> no gráfico{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TRD</strong>,{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">
+                      separados por PILARES e PSI
+                    </strong>{" "}
+                    (total {rows.length} {rows.length === 1 ? "linha" : "linhas"}).
+                  </>
+                ) : (
+                  <>
+                    Processos criados da categoria <strong className="font-semibold">{fatiaNome}</strong> no gráfico{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TRD</strong>:{" "}
+                    {rows.length} {rows.length === 1 ? "linha" : "linhas"}.
                   </>
                 )
               ) : kind === "termoEnc" ? (
@@ -259,6 +339,22 @@ export function AlertaDonutDetalheModal({
                   <>
                     Processos com número oficial na categoria <strong className="font-semibold">{fatiaNome}</strong>{" "}
                     do gráfico END PROCESSO: {rows.length} {rows.length === 1 ? "linha" : "linhas"}.
+                  </>
+                )
+              ) : kind === "status" ? (
+                isConsolidado ? (
+                  <>
+                    Processos com número oficial na categoria <strong className="font-semibold">{fatiaNome}</strong>{" "}
+                    da coluna STATUS,{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">
+                      separadas por PILARES e PSI
+                    </strong>{" "}
+                    (total {rows.length} {rows.length === 1 ? "linha" : "linhas"}).
+                  </>
+                ) : (
+                  <>
+                    Processos com número oficial na categoria <strong className="font-semibold">{fatiaNome}</strong>{" "}
+                    da coluna STATUS: {rows.length} {rows.length === 1 ? "linha" : "linhas"}.
                   </>
                 )
               ) : isConsolidado ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useState, useTransition, type InputHTMLAttributes } from "react";
+import { useMemo, useState, useTransition, type InputHTMLAttributes } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -115,18 +115,15 @@ export function LoginForm() {
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [darkMode, setDarkMode] = useState<boolean | null>(null);
-
-  useLayoutEffect(() => {
+  const [darkMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
     const stored = localStorage.getItem(THEME_KEY);
-    let isDark = false;
-    if (stored === "dark") isDark = true;
-    else if (stored === "light") isDark = false;
-    else isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setDarkMode(isDark);
-  }, []);
+    if (stored === "dark") return true;
+    if (stored === "light") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
-  const isDark = darkMode !== false;
+  const isDark = darkMode;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -186,6 +186,102 @@ export function processosPorBucketOnde(rows: ProcessoRow[], bucketNome: string, 
     .map(({ row }) => row);
 }
 
+export type StatusCategoria =
+  | "Efetivado"
+  | "Efetivado/Recorrente"
+  | "Pendente/Andamento"
+  | "Outros"
+  | "Não informado";
+
+export interface StatusBarRow {
+  name: StatusCategoria;
+  v: number;
+  count: number;
+  total: number;
+  fill: string;
+}
+
+function classificarStatus(raw: string | null | undefined): StatusCategoria {
+  const t = (raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (!t || t === "-" || t === "—") return "Não informado";
+  if (t === "efetivado") return "Efetivado";
+  if (t === "efetivado/recorrente" || t === "efetivado / recorrente") return "Efetivado/Recorrente";
+  if (t === "pendente/andamento" || t === "pendente / andamento") return "Pendente/Andamento";
+  return "Outros";
+}
+
+const STATUS_BASE_ORDER: readonly StatusCategoria[] = [
+  "Efetivado",
+  "Efetivado/Recorrente",
+  "Pendente/Andamento",
+] as const;
+
+const STATUS_COLORS: Record<StatusCategoria, string> = {
+  Efetivado: "#16a34a",
+  "Efetivado/Recorrente": "#2563eb",
+  "Pendente/Andamento": "#ea580c",
+  Outros: "#7c3aed",
+  "Não informado": "#94a3b8",
+};
+
+export function distribuicaoPorStatus(rows: ProcessoRow[]): StatusBarRow[] {
+  const oficiais = apenasProcessosComNumeroOficial(rows);
+  if (oficiais.length === 0) return [];
+  const counts: Record<StatusCategoria, number> = {
+    Efetivado: 0,
+    "Efetivado/Recorrente": 0,
+    "Pendente/Andamento": 0,
+    Outros: 0,
+    "Não informado": 0,
+  };
+  for (const r of oficiais) counts[classificarStatus(r.status)] += 1;
+  const total = oficiais.length;
+  const out: StatusBarRow[] = STATUS_BASE_ORDER.map((name) => ({
+    name,
+    v: pct(counts[name], total),
+    count: counts[name],
+    total,
+    fill: STATUS_COLORS[name],
+  }));
+  if (counts.Outros > 0) {
+    out.push({
+      name: "Outros",
+      v: pct(counts.Outros, total),
+      count: counts.Outros,
+      total,
+      fill: STATUS_COLORS.Outros,
+    });
+  }
+  if (counts["Não informado"] > 0) {
+    out.push({
+      name: "Não informado",
+      v: pct(counts["Não informado"], total),
+      count: counts["Não informado"],
+      total,
+      fill: STATUS_COLORS["Não informado"],
+    });
+  }
+  return out;
+}
+
+const STATUS_BUCKETS = new Set<StatusCategoria>([
+  "Efetivado",
+  "Efetivado/Recorrente",
+  "Pendente/Andamento",
+  "Outros",
+  "Não informado",
+]);
+
+export function processosPorStatus(rows: ProcessoRow[], nomeStatus: string): ProcessoRow[] {
+  if (!STATUS_BUCKETS.has(nomeStatus as StatusCategoria)) return [];
+  return apenasProcessosComNumeroOficial(rows).filter((r) => classificarStatus(r.status) === nomeStatus);
+}
+
 export function pct(part: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((part / total) * 1000) / 10;
@@ -407,6 +503,61 @@ export function processosCriadosPorFatiaTermoEnc(rows: ProcessoRow[], nomeFatia:
   if (nomeFatia === "Sem dados" || !FATIA_TERMO_ENC.has(nomeFatia)) return [];
   const criados = apenasProcessosComNumeroOficial(rows);
   return criados.filter((r) => classificarTermoEnc(r.termoEnc) === nomeFatia);
+}
+
+export interface DfdTrdBarPoint {
+  /** "Incluso" | "Ausente" | "Não se aplica" */
+  name: string;
+  dfd: number;
+  dfdCount: number;
+  trd: number;
+  trdCount: number;
+  total: number;
+}
+
+export type DfdTrdColuna = "DFD" | "TRD";
+const DFD_TRD_BUCKETS = new Set(["Incluso", "Ausente", "Não se aplica"]);
+
+/**
+ * Distribuição das colunas **DFD** e **TRD** apenas para processos criados do bloco.
+ * Para cada opção (Incluso / Ausente / Não se aplica) retorna o percentual
+ * representado em DFD e em TRD em relação ao total de processos com número oficial.
+ */
+export function dfdTrdBars(rows: ProcessoRow[]): DfdTrdBarPoint[] {
+  const criados = apenasProcessosComNumeroOficial(rows);
+  const t = criados.length;
+  if (t === 0) return [];
+  const classify = classificarTermoEnc;
+  let dIncl = 0, dAus = 0, dNa = 0;
+  let tIncl = 0, tAus = 0, tNa = 0;
+  for (const r of criados) {
+    const bd = classify(r.dfd);
+    if (bd === "Incluso") dIncl++;
+    else if (bd === "Ausente") dAus++;
+    else if (bd === "Não se aplica") dNa++;
+    const bt = classify(r.trd);
+    if (bt === "Incluso") tIncl++;
+    else if (bt === "Ausente") tAus++;
+    else if (bt === "Não se aplica") tNa++;
+  }
+  return [
+    { name: "Incluso",       dfd: pct(dIncl, t), dfdCount: dIncl, trd: pct(tIncl, t), trdCount: tIncl, total: t },
+    { name: "Ausente",       dfd: pct(dAus,  t), dfdCount: dAus,  trd: pct(tAus,  t), trdCount: tAus,  total: t },
+    { name: "Não se aplica", dfd: pct(dNa,   t), dfdCount: dNa,   trd: pct(tNa,   t), trdCount: tNa,   total: t },
+  ];
+}
+
+export function processosCriadosPorBucketDfdTrd(
+  rows: ProcessoRow[],
+  coluna: DfdTrdColuna,
+  bucketNome: string,
+): ProcessoRow[] {
+  if (!DFD_TRD_BUCKETS.has(bucketNome)) return [];
+  const criados = apenasProcessosComNumeroOficial(rows);
+  return criados.filter((r) => {
+    const valor = coluna === "DFD" ? r.dfd : r.trd;
+    return classificarTermoEnc(valor) === bucketNome;
+  });
 }
 
 /**

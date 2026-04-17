@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   Cell,
+  LabelList,
   Pie,
   PieChart as RechartsPieChart,
   ResponsiveContainer,
@@ -51,7 +52,9 @@ import { MOCK_PROCESSOS } from "@/lib/mockData";
 import {
   alocacaoFocalPie,
   type AlocacaoFocalFiltro,
+  type DfdTrdColuna,
   distribuicaoPorOnde,
+  distribuicaoPorStatus,
   filterByAlocacaoFocal,
   filterByBloco,
   filterByStartProcessoRange,
@@ -60,13 +63,17 @@ import {
   healthDonut,
   processosCriadosPorFatiaAlerta,
   processosCriadosPorFatiaAlocacaoFocal,
+  processosCriadosPorBucketDfdTrd,
   processosCriadosPorFatiaEndProcesso,
   processosCriadosPorFatiaTermoEnc,
   processosPorBucketOnde,
+  processosPorStatus,
   kpisGlobais,
   resumoBloco,
   searchRows,
   termoEncPie,
+  dfdTrdBars,
+  type DfdTrdBarPoint,
   topAtrasados,
   valorTotalPendentesCriacao,
   valorTotalProcessos,
@@ -77,6 +84,8 @@ import { KpiDetailModal } from "@/components/dashboard/KpiDetailModal";
 import { KpiStandbyOndeModal } from "@/components/dashboard/KpiStandbyOndeModal";
 import { AlertaDonutDetalheModal } from "@/components/dashboard/AlertaDonutDetalheModal";
 import { KpiTotalStartEvolucaoModal } from "@/components/dashboard/KpiTotalStartEvolucaoModal";
+import GestaoComponentesView from "@/components/dashboard/GestaoComponentesView";
+import type { ComponenteGestaoRow } from "@/lib/parseGestaoComponentesCsv";
 
 const COLORS = {
   pilares: "#2563eb",
@@ -385,6 +394,306 @@ function OndeProcessoBars({
   );
 }
 
+function StatusYAxisTick({
+  x,
+  y,
+  payload,
+  fill,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  fill?: string;
+}) {
+  const text = payload?.value ?? "";
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0}
+        y={0}
+        dy={4}
+        textAnchor="end"
+        fill={fill ?? "#64748b"}
+        fontSize={10}
+        fontWeight={600}
+        style={{ whiteSpace: "nowrap" }}
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
+function StatusBars({
+  rows,
+  chartDark = false,
+  onBarClick,
+}: {
+  rows: ProcessoRow[];
+  chartDark?: boolean;
+  onBarClick?: (statusNome: string) => void;
+}) {
+  const t = chartDark ? barChartTheme.dark : barChartTheme.light;
+  const chartRows = distribuicaoPorStatus(rows);
+  const displayData = chartRows.map((row, i) => ({
+    ...row,
+    rankLabel: `${i + 1}º ${row.name}`,
+  }));
+  const barThickness = 20;
+  const chartHeight = Math.max(120, displayData.length * (barThickness + 18) + 24);
+
+  if (displayData.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <BarChart3 className="h-3.5 w-3.5" />
+          Status
+        </p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">Sem dados para exibir.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col space-y-2">
+      <div className="shrink-0">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <BarChart3 className="h-3.5 w-3.5" />
+          Status
+        </p>
+        <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+          Representatividade por quantidade de processos criados do bloco.
+        </p>
+      </div>
+      <div
+        className="w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-1 pb-2 pt-2.5 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
+        style={{ height: chartHeight }}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart layout="vertical" data={displayData} margin={{ top: 4, right: 18, left: 6, bottom: 4 }}>
+            <XAxis type="number" domain={[0, 100]} hide />
+            <YAxis
+              type="category"
+              dataKey="rankLabel"
+              width={180}
+              tick={<StatusYAxisTick fill={t.yTick} />}
+              interval={0}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              cursor={{ fill: t.cursor }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0].payload as {
+                  name: string;
+                  v: number;
+                  count: number;
+                  total: number;
+                };
+                return (
+                  <div className="max-w-[240px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{d.name}</p>
+                    <p className="mt-2 text-slate-600 dark:text-slate-300">
+                      <span className="text-slate-500 dark:text-slate-400">Linhas no status:</span>{" "}
+                      <strong className="text-slate-900 dark:text-white">{d.count}</strong>
+                      <span className="text-slate-500 dark:text-slate-400"> ({d.v}% de {d.total})</span>
+                    </p>
+                  </div>
+                );
+              }}
+            />
+            <Bar
+              dataKey="v"
+              barSize={barThickness}
+              radius={[0, 10, 10, 0]}
+              onClick={(data) => {
+                const nome = (data as { name?: string } | undefined)?.name;
+                if (onBarClick && nome) onBarClick(nome);
+              }}
+              style={{ cursor: onBarClick ? "pointer" : "default" }}
+            >
+              {displayData.map((r, i) => (
+                <Cell
+                  key={`${r.name}-${i}`}
+                  fill={r.fill}
+                  stroke="rgba(255,255,255,0.9)"
+                  strokeWidth={2}
+                  style={{ filter: "drop-shadow(4px 6px 12px rgba(15, 23, 42, 0.14))" }}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+const DFD_COLOR = "#7c3aed";
+const TRD_COLOR = "#0891b2";
+
+function DfdTrdBars({
+  rows,
+  chartDark = false,
+  onBarClick,
+}: {
+  rows: ProcessoRow[];
+  chartDark?: boolean;
+  onBarClick?: (coluna: DfdTrdColuna, bucketNome: string) => void;
+}) {
+  const t = chartDark ? barChartTheme.dark : barChartTheme.light;
+  const data: DfdTrdBarPoint[] = dfdTrdBars(rows);
+
+  const barThickness = 28;
+  const chartHeight = 260;
+  const labelFill = chartDark ? "#e2e8f0" : "#334155";
+
+  if (data.length === 0 || rows.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <BarChart3 className="h-3.5 w-3.5" />
+          DFD / TRD
+        </p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">Sem dados para exibir.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col space-y-2">
+      <div className="shrink-0">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <BarChart3 className="h-3.5 w-3.5" />
+          DFD / TRD
+        </p>
+        <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+          Representatividade por quantidade de linhas do bloco.
+        </p>
+        <div className="mt-1.5 flex items-center gap-3 text-[10px] font-medium">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-3 rounded-sm" style={{ background: DFD_COLOR }} />
+            <span className="text-slate-600 dark:text-slate-400">DFD</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-3 rounded-sm" style={{ background: TRD_COLOR }} />
+            <span className="text-slate-600 dark:text-slate-400">TRD</span>
+          </span>
+        </div>
+      </div>
+      <div
+        className="w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white px-2 pb-2 pt-5 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
+        style={{ height: chartHeight }}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            margin={{ top: 20, right: 12, left: 0, bottom: 4 }}
+            barCategoryGap="22%"
+            barGap={4}
+          >
+            <XAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 10, fill: t.yTick, fontWeight: 600 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis type="number" domain={[0, 100]} hide />
+            <Tooltip
+              cursor={{ fill: t.cursor }}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const dPoint = payload.find((p) => p.dataKey === "dfd");
+                const tPoint = payload.find((p) => p.dataKey === "trd");
+                const pt = dPoint?.payload as DfdTrdBarPoint | undefined;
+                const total = pt?.total ?? 0;
+                return (
+                  <div className="w-52 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{label}</p>
+                    <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      Total de processos criados no bloco: <strong className="text-slate-600 dark:text-slate-300">{total}</strong>
+                    </p>
+                    <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2 dark:border-slate-700">
+                      {dPoint ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: DFD_COLOR }} />
+                            DFD
+                          </span>
+                          <span className="tabular-nums font-semibold text-slate-900 dark:text-white">
+                            {dPoint.value}%
+                            <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
+                              ({pt?.dfdCount ?? 0})
+                            </span>
+                          </span>
+                        </div>
+                      ) : null}
+                      {tPoint ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: TRD_COLOR }} />
+                            TRD
+                          </span>
+                          <span className="tabular-nums font-semibold text-slate-900 dark:text-white">
+                            {tPoint.value}%
+                            <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
+                              ({(tPoint.payload as DfdTrdBarPoint).trdCount})
+                            </span>
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            <Bar
+              dataKey="dfd"
+              name="DFD"
+              barSize={barThickness}
+              radius={[4, 4, 0, 0]}
+              fill={DFD_COLOR}
+              onClick={(data) => {
+                const nome = (data as { name?: string } | undefined)?.name;
+                if (onBarClick && nome) onBarClick("DFD", nome);
+              }}
+              style={{ cursor: onBarClick ? "pointer" : "default" }}
+            >
+              <LabelList
+                dataKey="dfd"
+                position="top"
+                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
+                style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
+              />
+            </Bar>
+            <Bar
+              dataKey="trd"
+              name="TRD"
+              barSize={barThickness}
+              radius={[4, 4, 0, 0]}
+              fill={TRD_COLOR}
+              onClick={(data) => {
+                const nome = (data as { name?: string } | undefined)?.name;
+                if (onBarClick && nome) onBarClick("TRD", nome);
+              }}
+              style={{ cursor: onBarClick ? "pointer" : "default" }}
+            >
+              <LabelList
+                dataKey="trd"
+                position="top"
+                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
+                style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function BlocoPanel({
   title,
   accent,
@@ -395,6 +704,8 @@ function BlocoPanel({
   onAlocacaoFocalFatiaClick,
   onTermoEncFatiaClick,
   onOndeBarClick,
+  onStatusBarClick,
+  onDfdTrdBarClick,
 }: {
   title: string;
   accent: string;
@@ -409,6 +720,10 @@ function BlocoPanel({
   onTermoEncFatiaClick?: (fatiaNome: string) => void;
   /** Abre detalhe em tabela ao clicar numa barra do ranking «Onde está o processo?». */
   onOndeBarClick?: (bucketNome: string) => void;
+  /** Abre detalhe em tabela ao clicar numa barra do gráfico «Status». */
+  onStatusBarClick?: (statusNome: string) => void;
+  /** Abre detalhe em tabela ao clicar numa barra do gráfico «DFD / TRD». */
+  onDfdTrdBarClick?: (coluna: DfdTrdColuna, bucketNome: string) => void;
 }) {
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
@@ -558,6 +873,9 @@ function BlocoPanel({
           </p>
         </div>
       </div>
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80">
+        <StatusBars rows={rows} chartDark={chartDark} onBarClick={onStatusBarClick} />
+      </div>
       <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[13.5rem] sm:flex sm:flex-col">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <PieChart className="h-3.5 w-3.5" />
@@ -667,6 +985,9 @@ function BlocoPanel({
           </div>
         </div>
       </div>
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80">
+        <DfdTrdBars rows={rows} chartDark={chartDark} onBarClick={onDfdTrdBarClick} />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <OndeProcessoBars rows={rows} chartDark={chartDark} barFill={accent} onBarClick={onOndeBarClick} />
       </div>
@@ -747,7 +1068,17 @@ type ProcessosApiResponse = {
 
 type RefreshVisual = "idle" | "loading" | "success" | "error";
 
+type DashboardTab = "overview-processos" | "gestao-componentes";
+
+type ComponentesApiResponse = {
+  rows: ComponenteGestaoRow[] | null;
+  source: "csv" | "mock" | "error";
+  message?: string;
+  updatedAt?: string;
+};
+
 export default function DashboardView() {
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview-processos");
   const [search, setSearch] = useState("");
   /** Intervalo (ISO `YYYY-MM-DD`) na coluna START PROCESSO; vazio = sem filtro nesse limite. */
   const [startProcessoDe, setStartProcessoDe] = useState("");
@@ -756,7 +1087,7 @@ export default function DashboardView() {
   const [lastUpdate, setLastUpdate] = useState(() => new Date());
   const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd" | "standbyOnde" | "totalStartEvolucao">(null);
   const [alertaFatiaDetalhe, setAlertaFatiaDetalhe] = useState<null | {
-    kind: "alertas" | "alocacaoFocal" | "termoEnc" | "onde" | "endProcesso";
+    kind: "alertas" | "alocacaoFocal" | "termoEnc" | "onde" | "endProcesso" | "status" | "dfdTrd";
     blocoTitulo: string;
     fatiaNome: string;
     rows: ProcessoRow[];
@@ -766,8 +1097,11 @@ export default function DashboardView() {
   /** Dados vindos de `/api/processos` (CSV no Drive). `undefined` = ainda a carregar. */
   const [remoteProcessos, setRemoteProcessos] = useState<ProcessoRow[] | null | undefined>(undefined);
   const [dataSourceLabel, setDataSourceLabel] = useState<string>("");
+  const [remoteComponentes, setRemoteComponentes] = useState<ComponenteGestaoRow[] | null | undefined>(undefined);
+  const [componentesDataSourceLabel, setComponentesDataSourceLabel] = useState<string>("");
   /** Momento da última resposta do servidor em `/api/processos` (ISO). */
   const [serverUpdatedAtIso, setServerUpdatedAtIso] = useState<string | null>(null);
+  const [componentesUpdatedAtIso, setComponentesUpdatedAtIso] = useState<string | null>(null);
   const [refreshVisual, setRefreshVisual] = useState<RefreshVisual>("idle");
   const refreshResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -834,9 +1168,49 @@ export default function DashboardView() {
     }
   }, []);
 
+  const loadComponentes = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/gestao-componentes?_=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
+      const data = (await res.json()) as ComponentesApiResponse;
+      const stamp = data.updatedAt ?? new Date().toISOString();
+      if (!res.ok) {
+        setRemoteComponentes(null);
+        setComponentesUpdatedAtIso(stamp);
+        setComponentesDataSourceLabel(
+          res.status === 401
+            ? "Não autorizado — atualize a página ou entre de novo."
+            : data.message?.trim()
+              ? `API: ${data.message}`
+              : `Erro ao carregar dados (${res.status}).`,
+        );
+        return false;
+      }
+      setComponentesUpdatedAtIso(stamp);
+      if (data.rows && data.rows.length > 0) {
+        setRemoteComponentes(data.rows);
+        setComponentesDataSourceLabel(data.source === "csv" ? "Planilha (CSV componentes)" : "Dados de exemplo");
+      } else {
+        setRemoteComponentes(null);
+        setComponentesDataSourceLabel(
+          data.source === "error" && data.message ? `CSV: ${data.message}` : "Dados de exemplo",
+        );
+      }
+      return data.source !== "error";
+    } catch {
+      setRemoteComponentes(null);
+      setComponentesDataSourceLabel("Dados de exemplo (erro ao carregar CSV)");
+      setComponentesUpdatedAtIso(new Date().toISOString());
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     void loadProcessos();
-  }, [loadProcessos]);
+    void loadComponentes();
+  }, [loadProcessos, loadComponentes]);
 
   useEffect(() => {
     return () => {
@@ -948,13 +1322,14 @@ export default function DashboardView() {
       refreshResetTimeoutRef.current = null;
     }
     setRefreshVisual("loading");
-    const ok = await loadProcessos();
+    const [okProcessos, okComponentes] = await Promise.all([loadProcessos(), loadComponentes()]);
+    const ok = okProcessos && okComponentes;
     setRefreshVisual(ok ? "success" : "error");
     refreshResetTimeoutRef.current = setTimeout(() => {
       setRefreshVisual("idle");
       refreshResetTimeoutRef.current = null;
     }, ok ? 2200 : 2600);
-  }, [loadProcessos]);
+  }, [loadComponentes, loadProcessos]);
 
   const logout = useCallback(async () => {
     try {
@@ -984,6 +1359,18 @@ export default function DashboardView() {
   const apiSyncLabel =
     serverUpdatedAtIso != null
       ? new Date(serverUpdatedAtIso).toLocaleString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      : "A carregar…";
+
+  const componentesTimeLabel =
+    componentesUpdatedAtIso != null
+      ? new Date(componentesUpdatedAtIso).toLocaleString("pt-BR", {
           day: "2-digit",
           month: "2-digit",
           year: "numeric",
@@ -1164,6 +1551,40 @@ export default function DashboardView() {
       </header>
 
       <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("overview-processos")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+              activeTab === "overview-processos"
+                ? "bg-slate-900 text-white dark:bg-cyan-500 dark:text-slate-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+          >
+            Overview de Processos
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("gestao-componentes")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+              activeTab === "gestao-componentes"
+                ? "bg-slate-900 text-white dark:bg-cyan-500 dark:text-slate-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+          >
+            Gestão $$ de componentes
+          </button>
+        </div>
+        {activeTab === "gestao-componentes" ? (
+          <GestaoComponentesView
+            rows={remoteComponentes ?? []}
+            processos={baseProcessos}
+            chartDark={darkMode === true}
+            dataSourceLabel={componentesDataSourceLabel}
+            timeStr={componentesTimeLabel}
+          />
+        ) : (
+        <>
         <div className="mb-6 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
             <Sparkles className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
@@ -1350,6 +1771,22 @@ export default function DashboardView() {
                 rows: processosPorBucketOnde(pilaresRows, bucketNome),
               })
             }
+            onStatusBarClick={(statusNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "status",
+                blocoTitulo: "PILARES",
+                fatiaNome: statusNome,
+                rows: processosPorStatus(pilaresRows, statusNome),
+              })
+            }
+            onDfdTrdBarClick={(coluna, bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "dfdTrd",
+                blocoTitulo: "PILARES",
+                fatiaNome: `${coluna} — ${bucketNome}`,
+                rows: processosCriadosPorBucketDfdTrd(pilaresRows, coluna, bucketNome),
+              })
+            }
           />
           <BlocoPanel
             title="PSI"
@@ -1389,6 +1826,22 @@ export default function DashboardView() {
                 rows: processosPorBucketOnde(psiRows, bucketNome),
               })
             }
+            onStatusBarClick={(statusNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "status",
+                blocoTitulo: "PSI",
+                fatiaNome: statusNome,
+                rows: processosPorStatus(psiRows, statusNome),
+              })
+            }
+            onDfdTrdBarClick={(coluna, bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "dfdTrd",
+                blocoTitulo: "PSI",
+                fatiaNome: `${coluna} — ${bucketNome}`,
+                rows: processosCriadosPorBucketDfdTrd(psiRows, coluna, bucketNome),
+              })
+            }
           />
           <BlocoPanel
             title="CONSOLIDADO"
@@ -1426,6 +1879,22 @@ export default function DashboardView() {
                 blocoTitulo: "CONSOLIDADO",
                 fatiaNome: bucketNome,
                 rows: processosPorBucketOnde(filtered, bucketNome),
+              })
+            }
+            onStatusBarClick={(statusNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "status",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome: statusNome,
+                rows: processosPorStatus(filtered, statusNome),
+              })
+            }
+            onDfdTrdBarClick={(coluna, bucketNome) =>
+              setAlertaFatiaDetalhe({
+                kind: "dfdTrd",
+                blocoTitulo: "CONSOLIDADO",
+                fatiaNome: `${coluna} — ${bucketNome}`,
+                rows: processosCriadosPorBucketDfdTrd(filtered, coluna, bucketNome),
               })
             }
           />
@@ -1557,6 +2026,8 @@ export default function DashboardView() {
             {apiSyncLabel}
           </p>
         </div>
+        </>
+        )}
       </div>
     </div>
   </div>

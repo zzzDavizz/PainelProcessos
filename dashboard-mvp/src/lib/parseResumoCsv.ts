@@ -105,9 +105,12 @@ type HeaderMap = Partial<Record<ProcessoField, number>> & {
 
 const HEADER_ALIASES: Record<ProcessoField, string[]> = {
   processo: ["PROCESSO"],
+  componente: ["COMPONENTE", "ATIVIDADE"],
   item: ["ITEM OBJETO SIMPLIFICADO"],
+  status: ["STATUS"],
   valor: ["VALOR TOTAL", "VALOR"],
   onde: ["ONDE ESTA O PROCESSO"],
+  proximaDataAlvo: ["PROXIMA DATA ALVO"],
   ultimaMovimentacao: ["ULTIMA MOVIMENTACAO"],
   standByDias: ["STAND BY", "STANDBY", "STAND BY DIAS"],
   alerta: ["ALERTA CRIT", "ALERTA", "ALERTA CRITICO"],
@@ -115,6 +118,8 @@ const HEADER_ALIASES: Record<ProcessoField, string[]> = {
   endProcesso: ["END PROCESSO"],
   diasEmCurso: ["DIAS EM CURSO"],
   termoEnc: ["TERMO ENC", "TERMO ENCERRAMENTO"],
+  dfd: ["DFD"],
+  trd: ["TRD"],
   responsavel: ["RESPONSAVEL"],
   alocacaoFocal: ["ALOCACAO FOCAL"],
   situacao: ["SITUACAO DOS PROCESSOS", "SITUACAO"],
@@ -216,11 +221,13 @@ function rowToProcesso(cols: string[], bloco: Bloco, headerMap: HeaderMap): Proc
   };
 
   const processo = pad("processo");
+  const componente = pad("componente") || null;
   const item = pad("item");
   if (!processo && !item) return null;
   if (/^PILARES$/i.test(processo) || /^PSI$/i.test(processo)) return null;
   if (isHeaderRow(cols) || isTotalRow(cols, headerMap)) return null;
 
+  const status = pad("status") || null;
   const valor = parseValorCell(pad("valor"));
   const onde = pad("onde");
   const ultimaMovimentacao = parseDataIso(pad("ultimaMovimentacao")) ?? "";
@@ -230,6 +237,9 @@ function rowToProcesso(cols: string[], bloco: Bloco, headerMap: HeaderMap): Proc
   const endProcesso = parseDataIso(pad("endProcesso"));
   const diasEmCurso = parseNumDias(pad("diasEmCurso"));
   const termoEnc = pad("termoEnc") || "—";
+  const dfd = pad("dfd") || "—";
+  const trd = pad("trd") || "—";
+  const proximaDataAlvo = parseDataIso(pad("proximaDataAlvo")) ?? (pad("proximaDataAlvo") || null);
   const responsavel = pad("responsavel") || null;
   const alocacaoFocal = pad("alocacaoFocal") || null;
   const situacaoExplicit = pad("situacao");
@@ -240,7 +250,9 @@ function rowToProcesso(cols: string[], bloco: Bloco, headerMap: HeaderMap): Proc
   return {
     bloco,
     processo: processo || "—",
+    componente,
     item: item || "—",
+    status,
     valor,
     onde,
     ultimaMovimentacao,
@@ -250,6 +262,9 @@ function rowToProcesso(cols: string[], bloco: Bloco, headerMap: HeaderMap): Proc
     endProcesso,
     diasEmCurso,
     termoEnc,
+    dfd,
+    trd,
+    proximaDataAlvo,
     responsavel,
     alocacaoFocal,
     situacao,
