@@ -18,7 +18,7 @@ const HEADERS = [
   "DIAS EM CURSO",
   "TERMO ENC.",
   "DFD",
-  "TRD",
+  "TDR",
   "RESPONSÁVEL",
   "ALOCAÇÃO FOCAL",
   "SITUAÇÃO DOS PROCESSOS",

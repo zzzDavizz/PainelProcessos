@@ -216,7 +216,7 @@ export function AlertaDonutDetalheModal({
                 </>
               ) : kind === "dfdTrd" ? (
                 <>
-                  DFD / TRD — <span className="font-semibold">{fatiaNome}</span>
+                  DFD / TDR — <span className="font-semibold">{fatiaNome}</span>
                 </>
               ) : kind === "termoEnc" ? (
                 <>
@@ -280,7 +280,7 @@ export function AlertaDonutDetalheModal({
                 isConsolidado ? (
                   <>
                     Processos criados da categoria <strong className="font-semibold">{fatiaNome}</strong> no gráfico{" "}
-                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TRD</strong>,{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TDR</strong>,{" "}
                     <strong className="font-semibold text-slate-800 dark:text-slate-100">
                       separados por PILARES e PSI
                     </strong>{" "}
@@ -289,7 +289,7 @@ export function AlertaDonutDetalheModal({
                 ) : (
                   <>
                     Processos criados da categoria <strong className="font-semibold">{fatiaNome}</strong> no gráfico{" "}
-                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TRD</strong>:{" "}
+                    <strong className="font-semibold text-slate-800 dark:text-slate-100">DFD / TDR</strong>:{" "}
                     {rows.length} {rows.length === 1 ? "linha" : "linhas"}.
                   </>
                 )

@@ -276,6 +276,9 @@ function OndeProcessoBars({
           Onde está o processo?{" "}
           <span className="font-normal text-slate-400 dark:text-slate-500">(ranking)</span>
         </p>
+        <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+          Status "Efetivado" e "Efetivado/Recorrente" são desconsiderados.
+        </p>
       </div>
       <div
         className="w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-1 pb-3 pt-3 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
@@ -285,7 +288,7 @@ function OndeProcessoBars({
           <BarChart
             layout="vertical"
             data={displayData}
-            margin={{ top: 8, right: 20, left: 4, bottom: 8 }}
+            margin={{ top: 8, right: 40, left: 4, bottom: 8 }}
             barCategoryGap="18%"
           >
             <XAxis
@@ -375,6 +378,13 @@ function OndeProcessoBars({
               }}
               style={{ cursor: onBarClick ? "pointer" : "default" }}
             >
+              <LabelList
+                dataKey="v"
+                position="right"
+                offset={8}
+                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
+                style={{ fontSize: 10, fontWeight: 700, fill: chartDark ? "#e2e8f0" : "#334155" }}
+              />
               {displayData.map((r, i) => (
                 <Cell
                   key={`${r.name}-${i}`}
@@ -470,7 +480,7 @@ function StatusBars({
         style={{ height: chartHeight }}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart layout="vertical" data={displayData} margin={{ top: 4, right: 18, left: 6, bottom: 4 }}>
+          <BarChart layout="vertical" data={displayData} margin={{ top: 4, right: 40, left: 6, bottom: 4 }}>
             <XAxis type="number" domain={[0, 100]} hide />
             <YAxis
               type="category"
@@ -513,6 +523,13 @@ function StatusBars({
               }}
               style={{ cursor: onBarClick ? "pointer" : "default" }}
             >
+              <LabelList
+                dataKey="v"
+                position="right"
+                offset={8}
+                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
+                style={{ fontSize: 10, fontWeight: 700, fill: chartDark ? "#e2e8f0" : "#334155" }}
+              />
               {displayData.map((r, i) => (
                 <Cell
                   key={`${r.name}-${i}`}
@@ -554,7 +571,7 @@ function DfdTrdBars({
       <div className="space-y-2">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <BarChart3 className="h-3.5 w-3.5" />
-          DFD / TRD
+          DFD / TDR
         </p>
         <p className="text-sm text-slate-400 dark:text-slate-500">Sem dados para exibir.</p>
       </div>
@@ -566,7 +583,7 @@ function DfdTrdBars({
       <div className="shrink-0">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <BarChart3 className="h-3.5 w-3.5" />
-          DFD / TRD
+          DFD / TDR
         </p>
         <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
           Representatividade por quantidade de linhas do bloco.
@@ -578,7 +595,7 @@ function DfdTrdBars({
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-3 rounded-sm" style={{ background: TRD_COLOR }} />
-            <span className="text-slate-600 dark:text-slate-400">TRD</span>
+            <span className="text-slate-600 dark:text-slate-400">TDR</span>
           </span>
         </div>
       </div>
@@ -634,7 +651,7 @@ function DfdTrdBars({
                         <div className="flex items-center justify-between gap-2">
                           <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: TRD_COLOR }} />
-                            TRD
+                            TDR
                           </span>
                           <span className="tabular-nums font-semibold text-slate-900 dark:text-white">
                             {tPoint.value}%
@@ -670,7 +687,7 @@ function DfdTrdBars({
             </Bar>
             <Bar
               dataKey="trd"
-              name="TRD"
+              name="TDR"
               barSize={barThickness}
               radius={[4, 4, 0, 0]}
               fill={TRD_COLOR}

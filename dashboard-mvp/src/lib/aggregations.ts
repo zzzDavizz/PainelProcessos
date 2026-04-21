@@ -97,6 +97,11 @@ function normalizeOndeKey(onde: string): string {
   return t.length > 0 ? t : ONDE_VAZIO_LABEL;
 }
 
+function incluirNoRankingOnde(r: ProcessoRow): boolean {
+  const status = classificarStatus(r.status);
+  return status !== "Efetivado" && status !== "Efetivado/Recorrente";
+}
+
 export function formatOndeBucketLabel(name: string): string {
   return name === ONDE_VAZIO_LABEL ? "(sem local definido)" : name;
 }
@@ -116,8 +121,9 @@ export function distribuicaoPorOnde(
   maxRotulos = 8,
   opts?: DistribuicaoPorOndeOpts,
 ): OndeBarRow[] {
+  const rowsFiltradas = rows.filter(incluirNoRankingOnde);
   const map = new Map<string, OndeAgg>();
-  for (const r of rows) {
+  for (const r of rowsFiltradas) {
     const key = normalizeOndeKey(r.onde ?? "");
     const cur = map.get(key) ?? { count: 0, valor: 0, pendenteCriacao: 0 };
     if (isPendenteCriacaoProcesso(r)) cur.pendenteCriacao += 1;
@@ -126,9 +132,9 @@ export function distribuicaoPorOnde(
     map.set(key, cur);
   }
   const sorted = [...map.entries()].sort((a, b) => b[1].count - a[1].count);
-  const totalCriados = apenasProcessosComNumeroOficial(rows).length;
+  const totalCriados = apenasProcessosComNumeroOficial(rowsFiltradas).length;
   const totalProc = totalCriados > 0 ? totalCriados : 1;
-  const somaValores = valorTotalProcessos(rows);
+  const somaValores = valorTotalProcessos(rowsFiltradas);
 
   let entries: [string, OndeAgg][];
   if (sorted.length <= maxRotulos) {
@@ -169,7 +175,9 @@ export function distribuicaoPorOnde(
 
 /** Linhas do bucket clicado no ranking «Onde está o processo?». */
 export function processosPorBucketOnde(rows: ProcessoRow[], bucketNome: string, maxRotulos = 8): ProcessoRow[] {
-  const normalizedRows = rows.map((r) => ({ row: r, ondeKey: normalizeOndeKey(r.onde ?? "") }));
+  const normalizedRows = rows
+    .filter(incluirNoRankingOnde)
+    .map((r) => ({ row: r, ondeKey: normalizeOndeKey(r.onde ?? "") }));
   if (bucketNome !== "Demais") {
     return normalizedRows
       .filter(({ ondeKey }) => ondeKey === bucketNome)
