@@ -66,6 +66,11 @@ function AlertaFatiaTabelaBloco({
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   PROCESSO
                 </th>
+                {showItemColumn ? (
+                  <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                    ITEM/OBJETO - SIMPLIFICADO
+                  </th>
+                ) : null}
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   VALOR TOTAL
                 </th>
@@ -76,14 +81,18 @@ function AlertaFatiaTabelaBloco({
                   ÚLTIMA MOVIMENTAÇÃO
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  MAP. DATA ALVO
-                </th>
-                <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   START PROCESSO
                 </th>
-                <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  {showItemColumn ? "ITEM/OBJETO - SIMPLIFICADO" : "TERMO ENC."}
-                </th>
+                {!showItemColumn ? (
+                  <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                    MAP. DATA ALVO
+                  </th>
+                ) : null}
+                {!showItemColumn ? (
+                  <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                    TERMO ENC.
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -104,6 +113,11 @@ function AlertaFatiaTabelaBloco({
                   <td className="max-w-[200px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     <span className="line-clamp-3 break-words">{r.processo}</span>
                   </td>
+                  {showItemColumn ? (
+                    <td className="max-w-[260px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
+                      <span className="line-clamp-3 break-words">{r.item?.trim() || "—"}</span>
+                    </td>
+                  ) : null}
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {r.valor != null ? formatBRL(r.valor) : "—"}
                   </td>
@@ -114,16 +128,18 @@ function AlertaFatiaTabelaBloco({
                     {formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}
                   </td>
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {formatDateAllowBlank(r.proximaDataAlvo)}
-                  </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {formatStartProcessoBR(r.startProcesso)}
                   </td>
-                  <td className="max-w-[160px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    <span className="line-clamp-2 break-words">
-                      {showItemColumn ? (r.item?.trim() || "—") : (r.termoEnc?.trim() || "—")}
-                    </span>
-                  </td>
+                  {!showItemColumn ? (
+                    <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
+                      {formatDateAllowBlank(r.proximaDataAlvo)}
+                    </td>
+                  ) : null}
+                  {!showItemColumn ? (
+                    <td className="max-w-[160px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
+                      <span className="line-clamp-2 break-words">{r.termoEnc?.trim() || "—"}</span>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
