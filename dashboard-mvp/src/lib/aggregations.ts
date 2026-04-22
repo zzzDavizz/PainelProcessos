@@ -514,7 +514,7 @@ export function processosCriadosPorFatiaTermoEnc(rows: ProcessoRow[], nomeFatia:
 }
 
 export interface DfdTrdBarPoint {
-  /** "Incluso" | "Ausente" | "Não se aplica" */
+  /** "Incluso" | "Ausente" | "Não Se Aplica" */
   name: string;
   dfd: number;
   dfdCount: number;
@@ -524,11 +524,23 @@ export interface DfdTrdBarPoint {
 }
 
 export type DfdTrdColuna = "DFD" | "TRD";
-const DFD_TRD_BUCKETS = new Set(["Incluso", "Ausente", "Não se aplica"]);
+const DFD_TRD_BUCKETS = new Set(["Incluso", "Ausente", "Não Se Aplica", "Não se aplica"]);
+
+function normalizeDfdTrdBucketName(bucketNome: string): "Incluso" | "Ausente" | "Não se aplica" | null {
+  const t = bucketNome
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (t === "incluso") return "Incluso";
+  if (t === "ausente") return "Ausente";
+  if (t === "nao se aplica") return "Não se aplica";
+  return null;
+}
 
 /**
  * Distribuição das colunas **DFD** e **TRD** apenas para processos criados do bloco.
- * Para cada opção (Incluso / Ausente / Não se aplica) retorna o percentual
+ * Para cada opção (Incluso / Ausente / Não Se Aplica) retorna o percentual
  * representado em DFD e em TRD em relação ao total de processos com número oficial.
  */
 export function dfdTrdBars(rows: ProcessoRow[]): DfdTrdBarPoint[] {
@@ -551,7 +563,7 @@ export function dfdTrdBars(rows: ProcessoRow[]): DfdTrdBarPoint[] {
   return [
     { name: "Incluso",       dfd: pct(dIncl, t), dfdCount: dIncl, trd: pct(tIncl, t), trdCount: tIncl, total: t },
     { name: "Ausente",       dfd: pct(dAus,  t), dfdCount: dAus,  trd: pct(tAus,  t), trdCount: tAus,  total: t },
-    { name: "Não se aplica", dfd: pct(dNa,   t), dfdCount: dNa,   trd: pct(tNa,   t), trdCount: tNa,   total: t },
+    { name: "Não Se Aplica", dfd: pct(dNa,   t), dfdCount: dNa,   trd: pct(tNa,   t), trdCount: tNa,   total: t },
   ];
 }
 
@@ -561,10 +573,12 @@ export function processosCriadosPorBucketDfdTrd(
   bucketNome: string,
 ): ProcessoRow[] {
   if (!DFD_TRD_BUCKETS.has(bucketNome)) return [];
+  const canonicalBucket = normalizeDfdTrdBucketName(bucketNome);
+  if (!canonicalBucket) return [];
   const criados = apenasProcessosComNumeroOficial(rows);
   return criados.filter((r) => {
     const valor = coluna === "DFD" ? r.dfd : r.trd;
-    return classificarTermoEnc(valor) === bucketNome;
+    return classificarTermoEnc(valor) === canonicalBucket;
   });
 }
 

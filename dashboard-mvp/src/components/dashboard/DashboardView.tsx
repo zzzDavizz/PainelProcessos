@@ -589,6 +589,19 @@ function DfdTrdBars({
 }) {
   const t = chartDark ? barChartTheme.dark : barChartTheme.light;
   const data: DfdTrdBarPoint[] = dfdTrdBars(rows);
+  const displayData = data.map((row) => ({
+    ...row,
+    dfdLabel: row.dfd > 0 || row.name === "Não Se Aplica" ? `${row.dfd}%` : "",
+    trdLabel: row.trd > 0 || row.name === "Não Se Aplica" ? `${row.trd}%` : "",
+  }));
+
+  const bucketIncluso = data.find((row) => row.name === "Incluso");
+  const bucketAusente = data.find((row) => row.name === "Ausente");
+  const bucketNaoSeAplica = data.find((row) => row.name === "Não Se Aplica");
+  const resumoAderenteDfd = (bucketIncluso?.dfd ?? 0) + (bucketNaoSeAplica?.dfd ?? 0);
+  const resumoAderenteTrd = (bucketIncluso?.trd ?? 0) + (bucketNaoSeAplica?.trd ?? 0);
+  const resumoNaoAderenteDfd = bucketAusente?.dfd ?? 0;
+  const resumoNaoAderenteTrd = bucketAusente?.trd ?? 0;
 
   const barThickness = 28;
   const chartHeight = 260;
@@ -628,13 +641,44 @@ function DfdTrdBars({
         </div>
       </div>
       <div
-        className="w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white px-2 pb-2 pt-5 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
+        className="relative w-full shrink-0 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white px-2 pb-2 pt-5 shadow-inner dark:border-slate-600 dark:from-slate-800/60 dark:to-slate-900/40"
         style={{ height: chartHeight }}
       >
+        <div className="group absolute right-3 top-3 z-10">
+          <div className="rounded-lg border border-slate-200/90 bg-white/90 px-2.5 py-2 text-[10px] shadow-sm dark:border-slate-600 dark:bg-slate-900/85">
+            <div className="grid grid-cols-[auto_auto_auto] items-center gap-x-2 gap-y-1">
+              <span />
+              <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: DFD_COLOR }} />
+                DFD
+              </span>
+              <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: TRD_COLOR }} />
+                TDR
+              </span>
+              <span className="font-medium text-emerald-700 dark:text-emerald-300">Aderente</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoAderenteDfd}%</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoAderenteTrd}%</span>
+              <span className="font-medium text-rose-700 dark:text-rose-300">Não aderente</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoNaoAderenteDfd}%</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoNaoAderenteTrd}%</span>
+            </div>
+          </div>
+          <div className="pointer-events-none absolute right-0 top-full mt-2 w-56 rounded-lg border border-slate-200/90 bg-white/95 px-3 py-2 text-[10px] leading-snug text-slate-600 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300">
+            <p>
+              <strong className="text-slate-700 dark:text-slate-100">Aderente</strong>: soma de{" "}
+              <strong>Incluso</strong> com <strong>Não Se Aplica</strong>.
+            </p>
+            <p className="mt-1">
+              <strong className="text-slate-700 dark:text-slate-100">Não aderente</strong>: corresponde ao
+              percentual de <strong>Ausente</strong>.
+            </p>
+          </div>
+        </div>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={data}
-            margin={{ top: 20, right: 12, left: 0, bottom: 4 }}
+            data={displayData}
+            margin={{ top: 20, right: 120, left: 0, bottom: 4 }}
             barCategoryGap="22%"
             barGap={4}
           >
@@ -707,9 +751,8 @@ function DfdTrdBars({
               style={{ cursor: onBarClick ? "pointer" : "default" }}
             >
               <LabelList
-                dataKey="dfd"
+                dataKey="dfdLabel"
                 position="top"
-                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
                 style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
               />
             </Bar>
@@ -726,9 +769,8 @@ function DfdTrdBars({
               style={{ cursor: onBarClick ? "pointer" : "default" }}
             >
               <LabelList
-                dataKey="trd"
+                dataKey="trdLabel"
                 position="top"
-                formatter={(v: unknown) => (typeof v === "number" && v > 0 ? `${v}%` : "")}
                 style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
               />
             </Bar>

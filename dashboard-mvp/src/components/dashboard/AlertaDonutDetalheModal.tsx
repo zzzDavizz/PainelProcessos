@@ -80,6 +80,11 @@ function AlertaFatiaTabelaBloco({
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   ÚLTIMA MOVIMENTAÇÃO
                 </th>
+                {showItemColumn ? (
+                  <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
+                    STANDBY
+                  </th>
+                ) : null}
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
                   START PROCESSO
                 </th>
@@ -127,6 +132,11 @@ function AlertaFatiaTabelaBloco({
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}
                   </td>
+                  {showItemColumn ? (
+                    <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
+                      {r.standByDias != null ? `${r.standByDias}` : "—"}
+                    </td>
+                  ) : null}
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
                     {formatStartProcessoBR(r.startProcesso)}
                   </td>

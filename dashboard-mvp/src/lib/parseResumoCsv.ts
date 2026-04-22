@@ -119,7 +119,7 @@ const HEADER_ALIASES: Record<ProcessoField, string[]> = {
   diasEmCurso: ["DIAS EM CURSO"],
   termoEnc: ["TERMO ENC", "TERMO ENCERRAMENTO"],
   dfd: ["DFD"],
-  trd: ["TRD"],
+  trd: ["TRD", "TDR"],
   responsavel: ["RESPONSAVEL"],
   alocacaoFocal: ["ALOCACAO FOCAL"],
   situacao: ["SITUACAO DOS PROCESSOS", "SITUACAO"],
