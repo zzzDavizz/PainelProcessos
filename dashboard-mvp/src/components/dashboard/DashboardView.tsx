@@ -606,6 +606,40 @@ function DfdTrdBars({
   const barThickness = 28;
   const chartHeight = 260;
   const labelFill = chartDark ? "#e2e8f0" : "#334155";
+  const renderDfdTrdLabel = ({
+    x,
+    y,
+    width,
+    height,
+    value,
+  }: {
+    x?: number | string;
+    y?: number | string;
+    width?: number | string;
+    height?: number | string;
+    value?: string | number | boolean | null;
+  }) => {
+    const label = typeof value === "string" ? value : "";
+    const px = typeof x === "number" ? x : Number(x);
+    const py = typeof y === "number" ? y : Number(y);
+    const pWidth = typeof width === "number" ? width : Number(width);
+    const pHeight = typeof height === "number" ? height : Number(height);
+    if (!label || !Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pWidth)) return null;
+    const labelX = px + pWidth / 2;
+    const labelY = py + ((Number.isFinite(pHeight) && pHeight > 0) ? -6 : -8);
+    return (
+      <text
+        x={labelX}
+        y={labelY}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill={labelFill}
+      >
+        {label}
+      </text>
+    );
+  };
 
   if (data.length === 0 || rows.length === 0) {
     return (
@@ -742,6 +776,7 @@ function DfdTrdBars({
               dataKey="dfd"
               name="DFD"
               barSize={barThickness}
+              minPointSize={2}
               radius={[4, 4, 0, 0]}
               fill={DFD_COLOR}
               onClick={(data) => {
@@ -752,14 +787,14 @@ function DfdTrdBars({
             >
               <LabelList
                 dataKey="dfdLabel"
-                position="top"
-                style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
+                content={renderDfdTrdLabel}
               />
             </Bar>
             <Bar
               dataKey="trd"
               name="TDR"
               barSize={barThickness}
+              minPointSize={2}
               radius={[4, 4, 0, 0]}
               fill={TRD_COLOR}
               onClick={(data) => {
@@ -770,8 +805,7 @@ function DfdTrdBars({
             >
               <LabelList
                 dataKey="trdLabel"
-                position="top"
-                style={{ fontSize: 10, fontWeight: 700, fill: labelFill }}
+                content={renderDfdTrdLabel}
               />
             </Bar>
           </BarChart>
