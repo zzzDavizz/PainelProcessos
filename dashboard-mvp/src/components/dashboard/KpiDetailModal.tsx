@@ -15,7 +15,7 @@ function formatDataBR(iso: string): string {
   }
 }
 
-const COLS = [
+const DEFAULT_COLS = [
   { key: "processo" as const, label: "Processo" },
   { key: "item" as const, label: "ITEM/OBJETO - SIMPLIFICADO" },
   { key: "valor" as const, label: "VALOR TOTAL" },
@@ -25,12 +25,28 @@ const COLS = [
   { key: "situacao" as const, label: "SITUAÇÃO DOS PROCESSOS" },
 ];
 
-function cellValue(row: ProcessoRow, key: (typeof COLS)[number]["key"]): string {
+const DIAS_EM_CURSO_COLS = [
+  { key: "processo" as const, label: "Processo" },
+  { key: "valor" as const, label: "VALOR TOTAL" },
+  { key: "onde" as const, label: "ONDE ESTÁ O PROCESSO?" },
+  { key: "ultimaMovimentacao" as const, label: "ÚLTIMA MOVIMENTAÇÃO" },
+  { key: "startProcesso" as const, label: "START PROCESSO" },
+  { key: "diasEmCurso" as const, label: "DIAS EM CURSO" },
+  { key: "termoEnc" as const, label: "TERMO ENC." },
+] as const;
+
+type ModalColumn = (typeof DEFAULT_COLS)[number] | (typeof DIAS_EM_CURSO_COLS)[number];
+
+function cellValue(row: ProcessoRow, key: ModalColumn["key"]): string {
   switch (key) {
     case "valor":
       return row.valor != null ? formatBRL(row.valor) : "—";
     case "ultimaMovimentacao":
       return formatDataBR(row.ultimaMovimentacao);
+    case "startProcesso":
+      return row.startProcesso ? formatDataBR(row.startProcesso) : "—";
+    case "diasEmCurso":
+      return row.diasEmCurso != null ? `${row.diasEmCurso}` : "—";
     case "responsavel":
       return row.responsavel?.trim() || "—";
     case "onde":
@@ -44,10 +60,12 @@ function BlocoTable({
   title,
   accent,
   rows,
+  columns,
 }: {
   title: string;
   accent: string;
   rows: ProcessoRow[];
+  columns: readonly ModalColumn[];
 }) {
   return (
     <div className="mb-8 last:mb-0">
@@ -61,7 +79,7 @@ function BlocoTable({
         <table className="w-full min-w-[980px] border-collapse text-left text-[11px]">
           <thead>
             <tr className="bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-              {COLS.map((c) => (
+              {columns.map((c) => (
                 <th
                   key={c.key}
                   className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600"
@@ -75,7 +93,7 @@ function BlocoTable({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={COLS.length}
+                  colSpan={columns.length}
                   className="border border-slate-200 px-3 py-6 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400"
                 >
                   Nenhum processo nesta categoria.
@@ -91,7 +109,7 @@ function BlocoTable({
                       : "bg-slate-50/80 dark:bg-slate-900/80"
                   }
                 >
-                  {COLS.map((c) => (
+                  {columns.map((c) => (
                     <td
                       key={c.key}
                       className="max-w-[220px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200"
@@ -116,6 +134,7 @@ export type KpiDetailModalProps = {
   subheading?: string;
   pilares: ProcessoRow[];
   psi: ProcessoRow[];
+  columns?: readonly ModalColumn[];
 };
 
 export function KpiDetailModal({
@@ -125,6 +144,7 @@ export function KpiDetailModal({
   subheading,
   pilares,
   psi,
+  columns = DEFAULT_COLS,
 }: KpiDetailModalProps) {
   useEffect(() => {
     if (!open) return;
@@ -173,8 +193,8 @@ export function KpiDetailModal({
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50 px-4 py-4 dark:bg-slate-950/50 sm:px-5 sm:py-5">
-          <BlocoTable title="PILARES" accent="#2563eb" rows={pilares} />
-          <BlocoTable title="PSI" accent="#dc2626" rows={psi} />
+          <BlocoTable title="PILARES" accent="#2563eb" rows={pilares} columns={columns} />
+          <BlocoTable title="PSI" accent="#dc2626" rows={psi} columns={columns} />
         </div>
       </div>
     </div>

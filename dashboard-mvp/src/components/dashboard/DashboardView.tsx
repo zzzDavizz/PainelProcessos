@@ -28,7 +28,6 @@ import {
   ListOrdered,
   LogOut,
   Moon,
-  MoreHorizontal,
   PieChart,
   RefreshCw,
   Search,
@@ -46,11 +45,13 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
 } from "react";
 import type { ProcessoRow } from "@/lib/types";
 import { MOCK_PROCESSOS } from "@/lib/mockData";
 import {
   alocacaoFocalPie,
+  apenasProcessosComNumeroOficial,
   type AlocacaoFocalFiltro,
   type DfdTrdColuna,
   distribuicaoPorOnde,
@@ -91,6 +92,16 @@ const COLORS = {
   pilares: "#2563eb",
   psi: "#dc2626",
   consolidado: "#0f172a",
+};
+
+type KpiModalKey = "alertas" | "diasEmCurso" | "semEnd" | "standbyOnde" | "totalStartEvolucao";
+
+type KpiCard = {
+  label: string;
+  desc?: string;
+  value: string;
+  sub: ReactNode;
+  modal: KpiModalKey | null;
 };
 
 /** Cores de eixo/grid do Recharts (SVG não herda `dark:` do Tailwind). */
@@ -146,24 +157,41 @@ function MiniDonut({
             ))}
           </Pie>
           <Tooltip
-            formatter={(v, _name, item) => {
-              const payload = item?.payload as { count?: number; total?: number } | undefined;
-              const count = payload?.count ?? 0;
-              const total = payload?.total ?? 0;
-              return [`${v ?? 0}% (${count}${total > 0 ? ` de ${total}` : ""})`, ""];
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const item = payload[0];
+              const slice = item?.payload as
+                | { name?: string; value?: number; count?: number; total?: number; color?: string }
+                | undefined;
+              const percent = typeof item?.value === "number" ? item.value : Number(item?.value ?? 0);
+              const count = slice?.count ?? 0;
+              const total = slice?.total ?? 0;
+
+              return (
+                <div className="max-w-[240px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ background: slice?.color ?? "#94a3b8" }}
+                    />
+                    {slice?.name ?? "Sem dados"}
+                  </p>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    <strong className="text-slate-900 dark:text-white">{percent}%</strong>{" "}
+                    <span className="text-slate-500 dark:text-slate-400">
+                      ({count}
+                      {total > 0 ? ` de ${total}` : ""})
+                    </span>
+                  </p>
+                  <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-snug text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                    <p className="font-semibold text-slate-700 dark:text-slate-200">Orientação</p>
+                    <p>Até 5 dias → OK</p>
+                    <p>6 a 10 dias → ATENÇÃO</p>
+                    <p>Acima de 10 dias → CRÍTICO</p>
+                  </div>
+                </div>
+              );
             }}
-            contentStyle={
-              chartDark
-                ? {
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #475569",
-                    borderRadius: "0.75rem",
-                    color: "#ffffff",
-                  }
-                : undefined
-            }
-            labelStyle={chartDark ? { color: "#ffffff" } : undefined}
-            itemStyle={chartDark ? { color: "#ffffff" } : undefined}
           />
         </RechartsPieChart>
       </ResponsiveContainer>
@@ -768,13 +796,6 @@ function BlocoPanel({
             {title}
           </h2>
         </div>
-        <button
-          type="button"
-          className="rounded-lg p-1.5 text-slate-500 hover:bg-white/80 dark:text-slate-400 dark:hover:bg-white/10"
-          aria-label="Menu"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
       </header>
       <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[19.5rem] sm:content-start">
         {/* Linha 1: mesma altura mínima nos 3 blocos (reserva para pendentes mesmo quando 0) */}
@@ -1102,7 +1123,7 @@ export default function DashboardView() {
   const [startProcessoAte, setStartProcessoAte] = useState("");
   const [alocacaoFocalFiltro, setAlocacaoFocalFiltro] = useState<AlocacaoFocalFiltro>("todos");
   const [lastUpdate, setLastUpdate] = useState(() => new Date());
-  const [kpiModal, setKpiModal] = useState<null | "alertas" | "semEnd" | "standbyOnde" | "totalStartEvolucao">(null);
+  const [kpiModal, setKpiModal] = useState<KpiModalKey | null>(null);
   const [alertaFatiaDetalhe, setAlertaFatiaDetalhe] = useState<null | {
     kind: "alertas" | "alocacaoFocal" | "termoEnc" | "onde" | "endProcesso" | "status" | "dfdTrd";
     blocoTitulo: string;
@@ -1254,9 +1275,8 @@ export default function DashboardView() {
     [allForKpi],
   );
 
-  const kpiCards = useMemo(
-    () =>
-      [
+  const kpiCards = useMemo<KpiCard[]>(
+    () => [
         {
           label: "Total de processos",
           value: String(kpis.totalProcessos),
@@ -1268,6 +1288,7 @@ export default function DashboardView() {
         },
         {
           label: "Alertas críticos",
+          desc: "Total de processos em que a última movimentação é =< a 10 dias",
           value: String(kpis.criticosTotal),
           sub: (
             <div className="flex w-full flex-col items-end gap-1.5 text-right normal-case">
@@ -1295,6 +1316,7 @@ export default function DashboardView() {
         },
         {
           label: "Standby médio",
+          desc: "Média geral dos dias sem ocorrer movimentações nos processos",
           value: `${kpis.standbyMedio}d`,
           sub:
             kpis.pendenteCriacao > 0
@@ -1303,13 +1325,14 @@ export default function DashboardView() {
           modal: "standbyOnde" as const,
         },
         {
-          label: "Tempo médio em curso",
+          label: "Média geral de dias em curso",
+          desc: "Tempo médio, em dias, entre a data de abertura e a data de fechamento dos processos.",
           value: `${kpis.diasEmCursoMedio}d`,
           sub:
             kpis.pendenteCriacao > 0
               ? `${kpis.pendenteCriacao} processo${kpis.pendenteCriacao > 1 ? "s" : ""} fora do cálculo`
               : "média",
-          modal: null as null,
+          modal: "diasEmCurso" as const,
         },
         {
           label: "Sem end",
@@ -1320,7 +1343,7 @@ export default function DashboardView() {
               : "Nenhum com data de fim",
           modal: "semEnd" as const,
         },
-      ] as const,
+      ],
     [kpis],
   );
   const pilaresAlertas = useMemo(
@@ -1332,6 +1355,12 @@ export default function DashboardView() {
   const semEndRows = useMemo(() => allForKpi.filter((r) => !r.endProcesso), [allForKpi]);
   const pilaresSemEnd = useMemo(() => filterByBloco(semEndRows, "PILARES"), [semEndRows]);
   const psiSemEnd = useMemo(() => filterByBloco(semEndRows, "PSI"), [semEndRows]);
+  const diasEmCursoRows = useMemo(
+    () => apenasProcessosComNumeroOficial(allForKpi).filter((r) => r.diasEmCurso != null),
+    [allForKpi],
+  );
+  const pilaresDiasEmCurso = useMemo(() => filterByBloco(diasEmCursoRows, "PILARES"), [diasEmCursoRows]);
+  const psiDiasEmCurso = useMemo(() => filterByBloco(diasEmCursoRows, "PSI"), [diasEmCursoRows]);
 
   const refresh = useCallback(async () => {
     if (refreshResetTimeoutRef.current) {
@@ -1656,15 +1685,16 @@ export default function DashboardView() {
                   style={{ backgroundColor: darkMode === true ? "#002942" : "#F5FAF4" }}
                 >
                   <p
-                    className="w-full truncate px-3 py-0 text-left text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:text-[11px] dark:text-slate-200"
-                    title={`${k.label}${k.modal ? " (detalhar)" : ""}`}
+                    className="w-full px-3 py-0 text-left text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:text-[11px] dark:text-slate-200"
                   >
-                    {k.label}
-                    {k.modal ? (
-                      <span className="ml-1 font-normal normal-case text-slate-500 opacity-90 dark:text-slate-400">
-                        (detalhar)
-                      </span>
-                    ) : null}
+                    <span className="block">
+                      {k.label}
+                      {k.modal ? (
+                        <span className="ml-1 font-normal normal-case text-slate-500 opacity-90 dark:text-slate-400">
+                          (detalhar)
+                        </span>
+                      ) : null}
+                    </span>
                   </p>
                 </div>
                 <div className="flex min-h-[4.25rem] flex-1 items-center justify-between gap-2 px-3 py-2.5 sm:min-h-[4.5rem] sm:gap-3 sm:px-3.5 sm:py-3">
@@ -1681,7 +1711,15 @@ export default function DashboardView() {
               </div>
             );
             const cardClass =
-              "flex min-h-0 flex-col self-stretch overflow-hidden rounded-xl border border-slate-200/90 bg-white p-0 text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
+              "group relative flex min-h-0 flex-col self-stretch overflow-hidden rounded-xl border border-slate-200/90 bg-white p-0 text-left shadow-sm shadow-slate-200/40 ring-1 ring-slate-100/80 dark:border-slate-700/90 dark:bg-slate-900/75 dark:shadow-black/25 dark:ring-slate-800/60";
+            const hoverDesc =
+              "desc" in k && k.desc
+                ? (
+                    <div className="pointer-events-none absolute inset-x-3 top-11 z-10 rounded-lg border border-slate-200/90 bg-white/95 px-2.5 py-2 text-[10px] font-medium leading-snug text-slate-600 opacity-0 shadow-lg shadow-slate-200/50 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 dark:border-slate-600 dark:bg-slate-800/95 dark:text-slate-200 dark:shadow-black/30">
+                      {k.desc}
+                    </div>
+                  )
+                : null;
             if (k.modal) {
               return (
                 <button
@@ -1689,20 +1727,15 @@ export default function DashboardView() {
                   type="button"
                   onClick={() => setKpiModal(k.modal)}
                   className={`${cardClass} m-0 cursor-pointer appearance-none font-inherit transition-shadow hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:border-slate-600 dark:focus-visible:ring-cyan-500/50`}
-                  title={
-                    k.modal === "standbyOnde"
-                      ? "Ver ranking de standby por local (onde está o processo)"
-                      : k.modal === "totalStartEvolucao"
-                        ? "Ver evolução dos inícios por START PROCESSO"
-                        : "Clique para ver a lista de processos"
-                  }
                 >
+                  {hoverDesc}
                   {body}
                 </button>
               );
             }
             return (
               <div key={k.label} className={cardClass}>
+                {hoverDesc}
                 {body}
               </div>
             );
@@ -1724,6 +1757,23 @@ export default function DashboardView() {
           subheading="Processos sem preenchimento da data de fim, por bloco."
           pilares={pilaresSemEnd}
           psi={psiSemEnd}
+        />
+        <KpiDetailModal
+          open={kpiModal === "diasEmCurso"}
+          onClose={() => setKpiModal(null)}
+          heading="Média geral de dias em curso"
+          subheading="Processos criados com DIAS EM CURSO preenchido, separados por PILARES e PSI, incluindo START PROCESSO e DIAS EM CURSO na tabela."
+          pilares={pilaresDiasEmCurso}
+          psi={psiDiasEmCurso}
+          columns={[
+            { key: "processo", label: "Processo" },
+            { key: "valor", label: "VALOR TOTAL" },
+            { key: "onde", label: "ONDE ESTÁ O PROCESSO?" },
+            { key: "ultimaMovimentacao", label: "ÚLTIMA MOVIMENTAÇÃO" },
+            { key: "startProcesso", label: "START PROCESSO" },
+            { key: "diasEmCurso", label: "DIAS EM CURSO" },
+            { key: "termoEnc", label: "TERMO ENC." },
+          ]}
         />
         <KpiStandbyOndeModal
           open={kpiModal === "standbyOnde"}

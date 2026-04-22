@@ -35,10 +35,12 @@ function AlertaFatiaTabelaBloco({
   title,
   accent,
   rows,
+  showItemColumn = false,
 }: {
   title: string;
   accent: string;
   rows: ProcessoRow[];
+  showItemColumn?: boolean;
 }) {
   return (
     <div className="mb-8 last:mb-0">
@@ -80,7 +82,7 @@ function AlertaFatiaTabelaBloco({
                   START PROCESSO
                 </th>
                 <th className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  TERMO ENC.
+                  {showItemColumn ? "ITEM/OBJETO - SIMPLIFICADO" : "TERMO ENC."}
                 </th>
               </tr>
             </thead>
@@ -118,7 +120,9 @@ function AlertaFatiaTabelaBloco({
                     {formatStartProcessoBR(r.startProcesso)}
                   </td>
                   <td className="max-w-[160px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    <span className="line-clamp-2 break-words">{r.termoEnc?.trim() || "—"}</span>
+                    <span className="line-clamp-2 break-words">
+                      {showItemColumn ? (r.item?.trim() || "—") : (r.termoEnc?.trim() || "—")}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -388,14 +392,25 @@ export function AlertaDonutDetalheModal({
             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum processo nesta fatia.</p>
           ) : isConsolidado ? (
             <>
-              <AlertaFatiaTabelaBloco title="PILARES" accent={ACCENT_PILARES} rows={pilaresRows} />
-              <AlertaFatiaTabelaBloco title="PSI" accent={ACCENT_PSI} rows={psiRows} />
+              <AlertaFatiaTabelaBloco
+                title="PILARES"
+                accent={ACCENT_PILARES}
+                rows={pilaresRows}
+                showItemColumn={kind === "onde"}
+              />
+              <AlertaFatiaTabelaBloco
+                title="PSI"
+                accent={ACCENT_PSI}
+                rows={psiRows}
+                showItemColumn={kind === "onde"}
+              />
             </>
           ) : (
             <AlertaFatiaTabelaBloco
               title={blocoTitulo}
               accent={blocoTitulo === "PSI" ? ACCENT_PSI : ACCENT_PILARES}
               rows={rows}
+              showItemColumn={kind === "onde"}
             />
           )}
         </div>
