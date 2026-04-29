@@ -848,7 +848,7 @@ function BlocoPanel({
 }) {
   const resumo = resumoBloco(rows);
   const donut = healthDonut(rows);
-  const focalSlices = alocacaoFocalPie(rows);
+  const focalSlices = alocacaoFocalPie(rows, { separarExternoBanco: title === "PILARES" });
   const termoEncSlices = termoEncPie(rows);
   const valorTotalCard = valorTotalProcessos(rows);
   const valorNaoCriados = valorTotalPendentesCriacao(rows);
@@ -1036,7 +1036,8 @@ function BlocoPanel({
           </span>
         </p>
         <p className="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-          Processos com número oficial; vazio na planilha conta como &quot;Não informado&quot;.
+          Processos com nº oficial e linhas «Pendente criação» com ALOCAÇÃO FOCAL preenchida; vazio conta como
+          &quot;Não informado&quot;.
         </p>
         <div className="flex min-w-0 flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
           <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
@@ -1113,15 +1114,21 @@ function ultimosMovimentadosListRow(r: ProcessoRow) {
   const localizacao = r.onde?.trim() || "—";
   const dataUltRaw = r.ultimaMovimentacao?.trim() || "";
   const dataUlt = dataUltRaw ? formatDataUltimaMovimentacaoBR(dataUltRaw) : "—";
+  const itemTxt = r.item?.trim() || "—";
   return (
     <li
       key={`${r.processo}-${r.item}-ultimos`}
       className="border-b border-slate-200/70 py-1.5 text-[10px] last:border-b-0 last:pb-0 dark:border-slate-600/50 sm:py-1"
     >
-      {/* Ordem: processo · dias em curso · localização do processo · data última movimentação */}
-      <div className="grid w-full max-w-none grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] sm:items-center sm:gap-x-2 sm:gap-y-0">
+      <div className="grid w-full max-w-none grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] sm:items-center sm:gap-x-2 sm:gap-y-0">
         <span className="min-w-0 break-words font-medium leading-snug text-slate-800 dark:text-slate-200">
           {r.processo}
+        </span>
+        <span
+          className="min-w-0 break-words leading-snug text-slate-600 dark:text-slate-400 sm:text-left"
+          title={itemTxt !== "—" ? itemTxt : undefined}
+        >
+          {itemTxt}
         </span>
         <span className="flex shrink-0 items-center sm:justify-center">
           <strong className="tabular-nums text-slate-900 dark:text-white">{r.diasEmCurso}d</strong>
@@ -1152,10 +1159,11 @@ function UltimosMovimentadosCard({ rows }: { rows: ProcessoRow[] }) {
         Top atrasados
       </p>
       <div
-        className="mb-1 hidden w-full grid-cols-[minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] gap-x-2 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-400 dark:text-slate-500 sm:grid"
+        className="mb-1 hidden w-full grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)_4.75rem_minmax(0,0.85fr)_minmax(0,5.75rem)] gap-x-2 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-400 dark:text-slate-500 sm:grid"
         aria-hidden
       >
         <span className="min-w-0">Processo</span>
+        <span className="min-w-0">Item/objeto simpl.</span>
         <span className="flex flex-col items-center justify-center gap-0 text-center">
           <span>Dias</span>
           <span>em curso</span>
@@ -1843,6 +1851,7 @@ export default function DashboardView() {
           psi={psiDiasEmCurso}
           columns={[
             { key: "processo", label: "Processo" },
+            { key: "item", label: "ITEM/OBJETO - SIMPLIFICADO" },
             { key: "valor", label: "VALOR TOTAL" },
             { key: "onde", label: "ONDE ESTÁ O PROCESSO?" },
             { key: "ultimaMovimentacao", label: "ÚLTIMA MOVIMENTAÇÃO" },
@@ -1895,7 +1904,9 @@ export default function DashboardView() {
                 kind: "alocacaoFocal",
                 blocoTitulo: "PILARES",
                 fatiaNome,
-                rows: processosCriadosPorFatiaAlocacaoFocal(pilaresRows, fatiaNome),
+                rows: processosCriadosPorFatiaAlocacaoFocal(pilaresRows, fatiaNome, {
+                  separarExternoBanco: true,
+                }),
               })
             }
             onTermoEncFatiaClick={(fatiaNome) =>

@@ -43,6 +43,19 @@ export function apenasProcessosComNumeroOficial(rows: ProcessoRow[]): ProcessoRo
   return rows.filter((r) => !isPendenteCriacaoProcesso(r));
 }
 
+/**
+ * Base do donut «Alocação focal»: todas as linhas com **número oficial** (como antes),
+ * mais linhas **sem nº oficial** quando a coluna **ALOCAÇÃO FOCAL** está preenchida
+ * (ex.: «Pendente Criação» ligada ao Banco Mundial).
+ * Linhas só pendentes, sem alocação, continuam fora deste gráfico.
+ */
+export function linhasBaseAlocacaoFocal(rows: ProcessoRow[]): ProcessoRow[] {
+  return rows.filter((r) => {
+    if (temNumeroOficialProcesso(r)) return true;
+    return !!(r.alocacaoFocal ?? "").trim();
+  });
+}
+
 export function contarPendentesCriacao(rows: ProcessoRow[]): number {
   return rows.filter(isPendenteCriacaoProcesso).length;
 }
@@ -437,45 +450,81 @@ export function processosCriadosPorFatiaAlerta(rows: ProcessoRow[], nomeFatia: s
   return apenasProcessosComNumeroOficial(rows).filter((r) => r.alerta === nivel);
 }
 
-/** Classifica texto da coluna ALOCAÇÃO FOCAL (planilha). */
-function classificarAlocacaoFocal(raw: string | null): "Interno" | "Externo" | "Não informado" | "Outros" {
-  const t = (raw ?? "")
+/** Rótulo exibido na pizza PILARES para linhas com externo + banco na planilha. */
+export const ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL = "Externo ( Banco )" as const;
+
+function normalizeAlocacaoFocalText(raw: string | null): string {
+  return (raw ?? "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
+}
+
+/**
+ * Classifica texto da coluna ALOCAÇÃO FOCAL (planilha).
+ * Com `separarExternoBanco`, valores que contenham «externo» e «banco» viram fatia própria (somente gráfico PILARES).
+ */
+function classificarAlocacaoFocal(
+  raw: string | null,
+  opts?: { separarExternoBanco?: boolean },
+): "Interno" | "Externo" | "Não informado" | "Outros" | typeof ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL {
+  const t = normalizeAlocacaoFocalText(raw);
   if (!t || t === "-" || t === "—") return "Não informado";
   if (t.includes("interno")) return "Interno";
+  if (opts?.separarExternoBanco && t.includes("externo") && t.includes("banco")) {
+    return ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL;
+  }
   if (t.includes("externo")) return "Externo";
   return "Outros";
 }
 
 /**
- * Distribuição da **ALOCAÇÃO FOCAL** entre processos com número oficial (exclui "Pendente Criação").
+ * Distribuição da **ALOCAÇÃO FOCAL** na base `linhasBaseAlocacaoFocal` (nº oficial + pendentes com alocação preenchida).
  * Percentagens sobre esse total.
  */
-const FATIA_ALOCACAO_FOCAL = new Set(["Interno", "Externo", "Não informado", "Outros"]);
+const FATIAS_ALOCACAO_FOCAL_VALIDAS = new Set<string>([
+  "Interno",
+  "Externo",
+  ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL,
+  "Não informado",
+  "Outros",
+]);
 
-/** Processos criados (nº oficial) na fatia clicada no gráfico «Alocação focal». */
-export function processosCriadosPorFatiaAlocacaoFocal(rows: ProcessoRow[], nomeFatia: string): ProcessoRow[] {
-  if (nomeFatia === "Sem dados" || !FATIA_ALOCACAO_FOCAL.has(nomeFatia)) return [];
-  const criados = apenasProcessosComNumeroOficial(rows);
-  return criados.filter((r) => classificarAlocacaoFocal(r.alocacaoFocal) === nomeFatia);
+/** Linhas na fatia clicada do gráfico «Alocação focal» (mesma base que a pizza). */
+export function processosCriadosPorFatiaAlocacaoFocal(
+  rows: ProcessoRow[],
+  nomeFatia: string,
+  opts?: { separarExternoBanco?: boolean },
+): ProcessoRow[] {
+  const separar = opts?.separarExternoBanco ?? false;
+  if (nomeFatia === "Sem dados" || !FATIAS_ALOCACAO_FOCAL_VALIDAS.has(nomeFatia)) return [];
+  if (nomeFatia === ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL && !separar) return [];
+  const base = linhasBaseAlocacaoFocal(rows);
+  return base.filter(
+    (r) => classificarAlocacaoFocal(r.alocacaoFocal, { separarExternoBanco: separar }) === nomeFatia,
+  );
 }
 
-export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
-  const criados = apenasProcessosComNumeroOficial(rows);
-  const t = criados.length;
+export function alocacaoFocalPie(
+  rows: ProcessoRow[],
+  opts?: { separarExternoBanco?: boolean },
+): HealthSlice[] {
+  const separar = opts?.separarExternoBanco ?? false;
+  const base = linhasBaseAlocacaoFocal(rows);
+  const t = base.length;
   if (t === 0) {
     return [{ name: "Sem dados", value: 100, color: "#94a3b8", count: 0, total: 0 }];
   }
   let interno = 0;
   let externo = 0;
+  let externoBanco = 0;
   let naoInfo = 0;
   let outros = 0;
-  for (const r of criados) {
-    const b = classificarAlocacaoFocal(r.alocacaoFocal);
+  for (const r of base) {
+    const b = classificarAlocacaoFocal(r.alocacaoFocal, { separarExternoBanco: separar });
     if (b === "Interno") interno++;
+    else if (b === ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL) externoBanco++;
     else if (b === "Externo") externo++;
     else if (b === "Não informado") naoInfo++;
     else outros++;
@@ -483,8 +532,17 @@ export function alocacaoFocalPie(rows: ProcessoRow[]): HealthSlice[] {
   const slices: HealthSlice[] = [
     { name: "Interno", value: pct(interno, t), color: "#2563eb", count: interno, total: t },
     { name: "Externo", value: pct(externo, t), color: "#ea580c", count: externo, total: t },
-    { name: "Não informado", value: pct(naoInfo, t), color: "#94a3b8", count: naoInfo, total: t },
   ];
+  if (separar) {
+    slices.push({
+      name: ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL,
+      value: pct(externoBanco, t),
+      color: "#0891b2",
+      count: externoBanco,
+      total: t,
+    });
+  }
+  slices.push({ name: "Não informado", value: pct(naoInfo, t), color: "#94a3b8", count: naoInfo, total: t });
   if (outros > 0) {
     slices.push({ name: "Outros", value: pct(outros, t), color: "#7c3aed", count: outros, total: t });
   }
@@ -619,7 +677,12 @@ export type AlocacaoFocalFiltro = "todos" | "Interno" | "Externo";
 /** Filtra linhas pela classificação da coluna ALOCAÇÃO FOCAL (interno / externo). */
 export function filterByAlocacaoFocal(rows: ProcessoRow[], filtro: AlocacaoFocalFiltro): ProcessoRow[] {
   if (filtro === "todos") return rows;
-  return rows.filter((r) => classificarAlocacaoFocal(r.alocacaoFocal) === filtro);
+  return rows.filter((r) => {
+    const b = classificarAlocacaoFocal(r.alocacaoFocal, { separarExternoBanco: true });
+    if (filtro === "Interno") return b === "Interno";
+    if (filtro === "Externo") return b === "Externo" || b === ALOCACAO_FOCAL_EXTERNO_BANCO_LABEL;
+    return false;
+  });
 }
 
 /**

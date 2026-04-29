@@ -1,10 +1,61 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { X } from "lucide-react";
 import type { ProcessoRow } from "@/lib/types";
 import { ONDE_VAZIO_LABEL } from "@/lib/aggregations";
 import { formatBRL } from "@/lib/format";
+import { useResizableTableColumns } from "@/hooks/useResizableTableColumns";
+
+function KpiColResizeGrip({
+  colIndex,
+  onResizeStart,
+}: {
+  colIndex: number;
+  onResizeStart: (colIndex: number, e: React.MouseEvent) => void;
+}) {
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      title="Arrastar para redimensionar a coluna"
+      className="absolute right-0 top-0 z-[1] h-full w-2 translate-x-1/2 cursor-col-resize select-none hover:bg-sky-500/35 dark:hover:bg-sky-400/30"
+      onMouseDown={(e) => onResizeStart(colIndex, e)}
+    />
+  );
+}
+
+const KPI_TD_TEXT =
+  "min-w-0 max-w-full overflow-hidden align-top text-[11px] [&>span]:break-words [&>span]:[overflow-wrap:anywhere]";
+
+function kpiInitialColumnWidths(columns: readonly ModalColumn[]): number[] {
+  return columns.map((c) => {
+    switch (c.key) {
+      case "processo":
+        return 124;
+      case "item":
+        return 200;
+      case "valor":
+        return 96;
+      case "onde":
+        return 132;
+      case "ultimaMovimentacao":
+        return 112;
+      case "responsavel":
+        return 104;
+      case "situacao":
+        return 220;
+      case "startProcesso":
+        return 108;
+      case "diasEmCurso":
+        return 84;
+      case "termoEnc":
+        return 144;
+      default:
+        return 112;
+    }
+  });
+}
 
 function formatDataBR(iso: string): string {
   if (!iso?.trim()) return "—";
@@ -27,6 +78,7 @@ const DEFAULT_COLS = [
 
 const DIAS_EM_CURSO_COLS = [
   { key: "processo" as const, label: "Processo" },
+  { key: "item" as const, label: "ITEM/OBJETO - SIMPLIFICADO" },
   { key: "valor" as const, label: "VALOR TOTAL" },
   { key: "onde" as const, label: "ONDE ESTÁ O PROCESSO?" },
   { key: "ultimaMovimentacao" as const, label: "ÚLTIMA MOVIMENTAÇÃO" },
@@ -67,6 +119,10 @@ function BlocoTable({
   rows: ProcessoRow[];
   columns: readonly ModalColumn[];
 }) {
+  const columnsKey = useMemo(() => columns.map((c) => c.key).join("|"), [columns]);
+  const initialWidths = useMemo(() => kpiInitialColumnWidths(columns), [columnsKey]);
+  const { widths, onResizeStart, tableMinWidth } = useResizableTableColumns(initialWidths, columnsKey);
+
   return (
     <div className="mb-8 last:mb-0">
       <h3
@@ -75,16 +131,28 @@ function BlocoTable({
       >
         {title}
       </h3>
+      <p className="mb-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+        Arraste a borda direita do cabeçalho para ajustar a largura das colunas.
+      </p>
       <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
-        <table className="w-full min-w-[980px] border-collapse text-left text-[11px]">
+        <table
+          className="table-fixed border-collapse text-left text-[11px]"
+          style={{ width: tableMinWidth, minWidth: tableMinWidth }}
+        >
+          <colgroup>
+            {widths.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-              {columns.map((c) => (
+              {columns.map((c, i) => (
                 <th
                   key={c.key}
-                  className="whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600"
+                  className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600"
                 >
-                  {c.label}
+                  <span className="block min-w-0 overflow-hidden pr-2">{c.label}</span>
+                  <KpiColResizeGrip colIndex={i} onResizeStart={onResizeStart} />
                 </th>
               ))}
             </tr>
@@ -112,9 +180,9 @@ function BlocoTable({
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className="max-w-[220px] border border-slate-200 px-2 py-1.5 align-top text-slate-800 dark:border-slate-700 dark:text-slate-200"
+                      className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${KPI_TD_TEXT}`}
                     >
-                      <span className="line-clamp-3 break-words">{cellValue(r, c.key)}</span>
+                      <span className="whitespace-normal">{cellValue(r, c.key)}</span>
                     </td>
                   ))}
                 </tr>
