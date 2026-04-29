@@ -122,6 +122,13 @@ const barChartTheme = {
   },
 } as const;
 
+/** Contexto dos cortes «Alertas críticos» (datas de última movimentação) — hover na legenda e no donut. */
+const ALERTA_CRITICOS_ORIENTACAO: Record<string, string> = {
+  Crítico: "Processos com data de última movimentação acima de 10 dias",
+  Atenção: "Processos com data de última movimentação de 6 a 10 dias",
+  OK: "Processos com data de última movimentação de até 5 dias",
+};
+
 function MiniDonut({
   data,
   chartDark = false,
@@ -166,15 +173,17 @@ function MiniDonut({
               const percent = typeof item?.value === "number" ? item.value : Number(item?.value ?? 0);
               const count = slice?.count ?? 0;
               const total = slice?.total ?? 0;
+              const nome = slice?.name ?? "Sem dados";
+              const orientTxt = ALERTA_CRITICOS_ORIENTACAO[nome];
 
               return (
-                <div className="max-w-[240px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                <div className="max-w-[280px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs shadow-lg ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
                   <p className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full"
                       style={{ background: slice?.color ?? "#94a3b8" }}
                     />
-                    {slice?.name ?? "Sem dados"}
+                    {nome}
                   </p>
                   <p className="mt-1 text-slate-600 dark:text-slate-300">
                     <strong className="text-slate-900 dark:text-white">{percent}%</strong>{" "}
@@ -183,12 +192,11 @@ function MiniDonut({
                       {total > 0 ? ` de ${total}` : ""})
                     </span>
                   </p>
-                  <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-snug text-slate-600 dark:border-slate-700 dark:text-slate-300">
-                    <p className="font-semibold text-slate-700 dark:text-slate-200">Orientação</p>
-                    <p>Até 5 dias → OK</p>
-                    <p>6 a 10 dias → ATENÇÃO</p>
-                    <p>Acima de 10 dias → CRÍTICO</p>
-                  </div>
+                  {orientTxt ? (
+                    <p className="mt-2 border-t border-slate-200/90 pt-2 text-[11px] leading-snug text-slate-600 dark:border-slate-600/80 dark:text-slate-300">
+                      {orientTxt}
+                    </p>
+                  ) : null}
                 </div>
               );
             }}
@@ -990,33 +998,62 @@ function BlocoPanel({
       <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80">
         <StatusBars rows={rows} chartDark={chartDark} onBarClick={onStatusBarClick} />
       </div>
-      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[13.5rem] sm:flex sm:flex-col">
+      <div className="shrink-0 border-b border-slate-100 p-4 dark:border-slate-700/80 sm:h-[12rem] sm:flex sm:flex-col">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <PieChart className="h-3.5 w-3.5" />
           Alertas críticos
         </p>
         <div className="flex min-w-0 flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
           <ul className="min-w-0 flex-1 space-y-1.5 text-xs sm:min-w-[120px]">
-            {donut.map((d) => (
-              <li key={d.name}>
-                <button
-                  type="button"
-                  disabled={!onAlertaFatiaClick || d.name === "Sem dados"}
-                  onClick={() => onAlertaFatiaClick?.(d.name)}
-                  className={`flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left ${
-                    onAlertaFatiaClick && d.name !== "Sem dados"
-                      ? "cursor-pointer text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60"
-                      : "cursor-default text-slate-600 dark:text-white"
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
-                    <span className="truncate">{d.name}</span>
-                  </span>
-                  <strong className="shrink-0 text-slate-900 dark:text-white">{d.value}%</strong>
-                </button>
-              </li>
-            ))}
+            {donut.map((d) => {
+              const orient = ALERTA_CRITICOS_ORIENTACAO[d.name];
+              return (
+                <li key={d.name}>
+                  <div className="group relative z-20">
+                    <button
+                      type="button"
+                      disabled={!onAlertaFatiaClick || d.name === "Sem dados"}
+                      onClick={() => onAlertaFatiaClick?.(d.name)}
+                      className={`relative z-0 flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left ${
+                        onAlertaFatiaClick && d.name !== "Sem dados"
+                          ? "cursor-pointer text-slate-600 hover:bg-slate-200/70 dark:text-white dark:hover:bg-slate-700/60"
+                          : "cursor-default text-slate-600 dark:text-white"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ background: d.color }}
+                        />
+                        <span className="min-w-0 font-medium text-slate-800 dark:text-slate-100">
+                          {d.name}
+                        </span>
+                      </span>
+                      <strong className="shrink-0 tabular-nums text-slate-900 dark:text-white">
+                        {d.value}%
+                      </strong>
+                    </button>
+                    {orient ? (
+                      <div
+                        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 w-[min(100%,18rem)] max-w-[280px] rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs opacity-0 shadow-lg ring-1 ring-slate-900/5 transition-opacity duration-150 group-hover:opacity-100 dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10 sm:w-max sm:max-w-[280px]"
+                        role="tooltip"
+                      >
+                        <p className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ background: d.color }}
+                          />
+                          {d.name}
+                        </p>
+                        <p className="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                          {orient}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <div className="mx-auto w-full min-w-[120px] max-w-[160px] shrink-0 sm:mx-0">
             <MiniDonut
