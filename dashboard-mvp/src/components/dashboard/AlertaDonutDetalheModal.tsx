@@ -31,7 +31,15 @@ function ColResizeGrip({
 }
 
 const tdTextBox =
-  "min-w-0 max-w-full overflow-hidden align-top text-[11px] [&>span]:break-words [&>span]:[overflow-wrap:anywhere]";
+  "min-w-0 overflow-hidden align-top text-[11px] break-words [overflow-wrap:anywhere] [word-break:break-word]";
+
+const tdTextInner = "block min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]";
+
+/** Datas e números numa linha; conteúdo confinado à célula (ellipsis se estreita). */
+const tdCellNoWrapOuter =
+  "min-w-0 overflow-hidden border border-slate-200 px-2 py-1.5 align-top tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200";
+
+const tdCellNoWrapInner = "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap";
 
 function formatStartProcessoBR(iso: string | null | undefined): string {
   const s = (iso ?? "").trim();
@@ -122,7 +130,10 @@ function AlertaFatiaTabelaBloco({
   );
 
   const thSortableCls =
-    "relative border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600 align-bottom";
+    "relative min-w-0 overflow-hidden border border-slate-300 px-2 py-2 pr-3 font-semibold dark:border-slate-600 align-bottom";
+
+  const thPlainCls =
+    "relative min-w-0 overflow-hidden whitespace-normal border border-slate-300 px-2 py-2 pr-3 font-semibold dark:border-slate-600";
 
   return (
     <div className="mb-8 last:mb-0">
@@ -154,30 +165,30 @@ function AlertaFatiaTabelaBloco({
             </colgroup>
             <thead>
               <tr className="bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">STATUS</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">STATUS</span>
                   <ColResizeGrip colIndex={0} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">PROCESSO</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">PROCESSO</span>
                   <ColResizeGrip colIndex={1} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">ITEM/OBJETO - SIMPLIFICADO</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">ITEM/OBJETO - SIMPLIFICADO</span>
                   <ColResizeGrip colIndex={2} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">VALOR TOTAL</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">VALOR TOTAL</span>
                   <ColResizeGrip colIndex={3} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">ONDE ESTÁ O PROCESSO?</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">ONDE ESTÁ O PROCESSO?</span>
                   <ColResizeGrip colIndex={4} onResizeStart={onResizeStart} />
                 </th>
                 <th className={thSortableCls}>
                   <button
                     type="button"
-                    className="flex w-full min-w-0 cursor-pointer flex-wrap items-center gap-1 pr-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-800 hover:underline dark:text-slate-100"
+                    className="flex w-full min-w-0 max-w-full cursor-pointer flex-wrap items-center gap-1 overflow-hidden pr-1 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-800 hover:underline dark:text-slate-100"
                     onClick={() => toggleSort("ultimaMovimentacao")}
                     aria-sort={
                       sortState?.key === "ultimaMovimentacao"
@@ -187,7 +198,7 @@ function AlertaFatiaTabelaBloco({
                         : "none"
                     }
                   >
-                    <span className="min-w-0 whitespace-normal">ÚLTIMA MOVIMENTAÇÃO</span>
+                    <span className="min-w-0 break-words leading-snug [overflow-wrap:anywhere]">ÚLTIMA MOVIMENTAÇÃO</span>
                     {sortState?.key === "ultimaMovimentacao" ? (
                       sortState.dir === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
@@ -198,14 +209,14 @@ function AlertaFatiaTabelaBloco({
                   </button>
                   <ColResizeGrip colIndex={5} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">STANDBY</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">STANDBY</span>
                   <ColResizeGrip colIndex={6} onResizeStart={onResizeStart} />
                 </th>
                 <th className={thSortableCls}>
                   <button
                     type="button"
-                    className="flex w-full min-w-0 cursor-pointer flex-wrap items-center gap-1 pr-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-800 hover:underline dark:text-slate-100"
+                    className="flex w-full min-w-0 max-w-full cursor-pointer flex-wrap items-center gap-1 overflow-hidden pr-1 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-800 hover:underline dark:text-slate-100"
                     onClick={() => toggleSort("startProcesso")}
                     aria-sort={
                       sortState?.key === "startProcesso"
@@ -215,7 +226,7 @@ function AlertaFatiaTabelaBloco({
                         : "none"
                     }
                   >
-                    <span className="min-w-0 whitespace-normal">START PROCESSO</span>
+                    <span className="min-w-0 break-words leading-snug [overflow-wrap:anywhere]">START PROCESSO</span>
                     {sortState?.key === "startProcesso" ? (
                       sortState.dir === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
@@ -226,16 +237,16 @@ function AlertaFatiaTabelaBloco({
                   </button>
                   <ColResizeGrip colIndex={7} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">SITUAÇÃO DOS PROCESSOS</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">SITUAÇÃO DOS PROCESSOS</span>
                   <ColResizeGrip colIndex={8} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-nowrap border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">MAP. DATA ALVO</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">MAP. DATA ALVO</span>
                   <ColResizeGrip colIndex={9} onResizeStart={onResizeStart} />
                 </th>
-                <th className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600">
-                  <span className="block min-w-0 overflow-hidden pr-2">TERMO ENC.</span>
+                <th className={thPlainCls}>
+                  <span className="block min-w-0 break-words pr-1 [overflow-wrap:anywhere]">TERMO ENC.</span>
                   <ColResizeGrip colIndex={10} onResizeStart={onResizeStart} />
                 </th>
               </tr>
@@ -252,7 +263,7 @@ function AlertaFatiaTabelaBloco({
                     className={`border border-slate-200 px-2 py-1.5 text-slate-700 dark:border-slate-700 dark:text-slate-300 ${tdTextBox}`}
                   >
                     {r.status?.trim() ? (
-                      <span className="whitespace-normal">{r.status.trim()}</span>
+                      <span className={tdTextInner}>{r.status.trim()}</span>
                     ) : (
                       <span className="text-slate-400 dark:text-slate-600">—</span>
                     )}
@@ -260,46 +271,56 @@ function AlertaFatiaTabelaBloco({
                   <td
                     className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${tdTextBox}`}
                   >
-                    <span className="whitespace-normal">{r.processo}</span>
+                    <span className={tdTextInner}>{r.processo}</span>
                   </td>
                   <td
                     className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${tdTextBox}`}
                   >
-                    <span className="whitespace-normal">{r.item?.trim() || "—"}</span>
+                    <span className={tdTextInner}>{r.item?.trim() || "—"}</span>
                   </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {r.valor != null ? formatBRL(r.valor) : "—"}
+                  <td className={tdCellNoWrapOuter} title={r.valor != null ? formatBRL(r.valor) : undefined}>
+                    <span className={tdCellNoWrapInner}>{r.valor != null ? formatBRL(r.valor) : "—"}</span>
                   </td>
                   <td
                     className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${tdTextBox}`}
                   >
-                    <span className="whitespace-normal">{ondeLabel(r)}</span>
+                    <span className={tdTextInner}>{ondeLabel(r)}</span>
                   </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}
+                  <td
+                    className={tdCellNoWrapOuter}
+                    title={formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}
+                  >
+                    <span className={tdCellNoWrapInner}>{formatDataUltimaMovimentacaoBR(r.ultimaMovimentacao)}</span>
                   </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {r.standByDias != null ? `${r.standByDias}` : "—"}
+                  <td
+                    className={tdCellNoWrapOuter}
+                    title={r.standByDias != null ? String(r.standByDias) : undefined}
+                  >
+                    <span className={tdCellNoWrapInner}>{r.standByDias != null ? `${r.standByDias}` : "—"}</span>
                   </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {formatStartProcessoBR(r.startProcesso)}
+                  <td className={tdCellNoWrapOuter} title={formatStartProcessoBR(r.startProcesso)}>
+                    <span className={tdCellNoWrapInner}>{formatStartProcessoBR(r.startProcesso)}</span>
                   </td>
                   <td
                     className={`border border-slate-200 px-2 py-1.5 text-slate-700 dark:border-slate-700 dark:text-slate-300 ${tdTextBox}`}
                   >
                     {r.situacao?.trim() ? (
-                      <span className="whitespace-normal">{r.situacao.trim()}</span>
+                      <span className={tdTextInner}>{r.situacao.trim()}</span>
                     ) : (
                       <span className="text-slate-400 dark:text-slate-600">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200">
-                    {formatDateAllowBlank(r.proximaDataAlvo)}
+                  <td
+                    className={`border border-slate-200 px-2 py-1.5 tabular-nums text-slate-800 dark:border-slate-700 dark:text-slate-200 ${tdTextBox}`}
+                  >
+                    <span className={tdTextInner}>
+                      {formatDateAllowBlank(r.proximaDataAlvo) || "—"}
+                    </span>
                   </td>
                   <td
                     className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${tdTextBox}`}
                   >
-                    <span className="whitespace-normal">{r.termoEnc?.trim() || "—"}</span>
+                    <span className={tdTextInner}>{r.termoEnc?.trim() || "—"}</span>
                   </td>
                 </tr>
               ))}

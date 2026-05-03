@@ -40,6 +40,7 @@ function normalizeComponentKey(value: string | null | undefined) {
 }
 
 function resolveThermometerColor(percentualUtilizado: number) {
+  if (percentualUtilizado > 100) return "#991b1b";
   if (percentualUtilizado >= 85) return "#dc2626";
   if (percentualUtilizado >= 60) return "#f59e0b";
   return "#22c55e";
@@ -66,8 +67,14 @@ function ThermometerCard({
   onClick?: () => void;
   compact?: boolean;
 }) {
-  const fill = valorBase != null && valorBase > 0 ? Math.max(0, Math.min(100, percentualUtilizado)) : 0;
-  const fillColor = resolveThermometerColor(fill);
+  const rawPct = valorBase != null && valorBase > 0 && Number.isFinite(percentualUtilizado) ? Math.max(0, percentualUtilizado) : 0;
+  const fillVisual = Math.min(100, rawPct);
+  const exceedsCap = rawPct > 100;
+  const overflowPct = exceedsCap ? rawPct - 100 : 0;
+  /** Altura relativa da faixa de excedente no topo do líquido (proporcional ao quanto passou de 100%). */
+  const overflowBandPctOfFill = exceedsCap ? Math.min(48, 14 + overflowPct * 0.35) : 0;
+  const fillColor = resolveThermometerColor(rawPct);
+  const displayPct = Math.round(rawPct * 10) / 10;
 
   const cardWidth = compact ? "min-w-[180px]" : "min-w-[190px]";
   const cardPadding = compact ? "px-4 py-5" : "px-5 py-6";
@@ -88,6 +95,7 @@ function ThermometerCard({
     <button
       type="button"
       onClick={onClick}
+      aria-label={`Consumo ${formatPercent(displayPct)} do saldo disponível${exceedsCap ? ", com excedente" : ""}`}
       className={`flex ${cardWidth} flex-col items-center rounded-2xl border border-slate-200/80 bg-white/70 ${cardPadding} text-left shadow-sm transition-colors hover:bg-white/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-900/90 dark:focus-visible:ring-cyan-500/50`}
     >
       <p className={`text-center font-bold uppercase tracking-wide ${titleClass}`} style={{ color: accent }}>
@@ -111,18 +119,32 @@ function ThermometerCard({
         </div>
 
         <div className={`relative ${tubeWrapSize}`}>
-          <div className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-full border-slate-300 bg-slate-100 shadow-inner dark:border-slate-500 dark:bg-slate-950 ${tubeSize}`}>
+          <div
+            className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-full border-slate-300 bg-slate-100 shadow-inner dark:border-slate-500 dark:bg-slate-950 ${tubeSize} ${exceedsCap ? "ring-2 ring-amber-400/80 ring-offset-2 ring-offset-white/90 dark:ring-amber-500/70 dark:ring-offset-slate-900/90" : ""}`}
+          >
             <div
               className="absolute bottom-0 left-0 w-full rounded-b-full transition-[height,background-color] duration-500"
               style={{
-                height: `${fill}%`,
+                height: `${fillVisual}%`,
                 background: `linear-gradient(180deg, ${fillColor}CC 0%, ${fillColor} 100%)`,
               }}
-            />
+            >
+              {exceedsCap ? (
+                <div
+                  className="pointer-events-none absolute left-0 right-0 top-0 min-h-[6px] border-b border-amber-300/60"
+                  style={{
+                    height: `${overflowBandPctOfFill}%`,
+                    background:
+                      "repeating-linear-gradient(-52deg, rgba(251,191,36,0.96) 0px, rgba(251,191,36,0.96) 4px, rgba(146,64,14,0.92) 4px, rgba(146,64,14,0.92) 8px)",
+                  }}
+                  title={`Excedente sobre o disponível: +${formatPercent(Math.round(overflowPct * 10) / 10)}`}
+                />
+              ) : null}
+            </div>
           </div>
 
           <div
-            className={`absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full border-slate-300 shadow-inner dark:border-slate-500 ${bulbSize}`}
+            className={`absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full border-slate-300 shadow-inner dark:border-slate-500 ${bulbSize} ${exceedsCap ? "ring ring-amber-400/75 dark:ring-amber-500/60" : ""}`}
             style={{
               background: `radial-gradient(circle at 35% 35%, ${fillColor}AA 0%, ${fillColor} 70%)`,
             }}
@@ -130,10 +152,15 @@ function ThermometerCard({
 
           <div className={`absolute left-1/2 -translate-x-1/2 rounded-full bg-slate-100 dark:bg-slate-950 ${connectorSize}`} />
 
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
             <span className={`rounded-full bg-white/85 font-bold tabular-nums text-slate-900 shadow-sm dark:bg-slate-900/85 dark:text-slate-100 ${percentClass}`}>
-              {formatPercent(fill)}
+              {formatPercent(displayPct)}
             </span>
+            {exceedsCap && !compact ? (
+              <span className="max-w-[5.5rem] rounded-md bg-amber-500/90 px-1.5 py-px text-center text-[9px] font-bold uppercase leading-tight tracking-wide text-amber-950 shadow-sm dark:bg-amber-400/90 dark:text-amber-950">
+                Excedente
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -149,6 +176,13 @@ function ThermometerCard({
         <div className={`pointer-events-none absolute -top-2 left-1/2 z-10 w-max -translate-x-1/2 -translate-y-full rounded-xl border border-slate-600 bg-slate-800/95 text-left opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:border-slate-500 dark:bg-slate-800 ${tooltipClass}`}>
           <p className="text-sm font-bold text-white">Total gasto</p>
           <p className="mt-1 text-xs font-medium text-slate-200">{formatBRL(valorUtilizado)}</p>
+          {exceedsCap && valorBase != null ? (
+            <p className="mt-2 border-t border-slate-600 pt-2 text-[11px] leading-snug text-amber-200">
+              Excedente vs. dispon. total:{" "}
+              <strong className="text-amber-100">{formatBRL(Math.max(0, valorUtilizado - valorBase))}</strong>
+              <span className="block text-slate-400">(+{formatPercent(Math.round(overflowPct * 10) / 10)} acima de 100%)</span>
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -194,19 +228,16 @@ function ComponentesThermometerModal({
             Consumo de saldo por componente
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Bloco <strong className="font-semibold" style={{ color: accent }}>{blocoTitulo}</strong>. Os termômetros abaixo
-            destacam qual componente está utilizando mais saldo.
+            Bloco <strong className="font-semibold" style={{ color: accent }}>{blocoTitulo}</strong>. Abaixo, o consumo de saldo
+            disponível por componente.
           </p>
         </header>
 
         <div className="bg-slate-50/50 px-5 py-5 dark:bg-slate-950/50">
           <div className="grid gap-5 md:grid-cols-3">
-            {items.map((item, index) => (
+            {items.map((item) => (
               <div key={`${blocoTitulo}-${item.componente}`} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  {index + 1}º maior uso
-                </p>
-                <div className="mt-3 flex justify-center">
+                <div className="flex justify-center">
                   <ThermometerCard
                     title={blocoTitulo}
                     subtitle={item.componente}

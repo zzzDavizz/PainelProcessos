@@ -26,7 +26,9 @@ function KpiColResizeGrip({
 }
 
 const KPI_TD_TEXT =
-  "min-w-0 max-w-full overflow-hidden align-top text-[11px] [&>span]:break-words [&>span]:[overflow-wrap:anywhere]";
+  "min-w-0 max-w-full align-top text-[11px] break-words [overflow-wrap:anywhere] [word-break:break-word]";
+
+const KPI_TD_SPAN = "block min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]";
 
 function kpiInitialColumnWidths(columns: readonly ModalColumn[]): number[] {
   return columns.map((c) => {
@@ -151,7 +153,7 @@ function BlocoTable({
                   key={c.key}
                   className="relative whitespace-normal border border-slate-300 px-2 py-2 font-semibold dark:border-slate-600"
                 >
-                  <span className="block min-w-0 overflow-hidden pr-2">{c.label}</span>
+                  <span className="block min-w-0 max-w-full break-words pr-2 [overflow-wrap:anywhere]">{c.label}</span>
                   <KpiColResizeGrip colIndex={i} onResizeStart={onResizeStart} />
                 </th>
               ))}
@@ -182,7 +184,7 @@ function BlocoTable({
                       key={c.key}
                       className={`border border-slate-200 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:text-slate-200 ${KPI_TD_TEXT}`}
                     >
-                      <span className="whitespace-normal">{cellValue(r, c.key)}</span>
+                      <span className={KPI_TD_SPAN}>{cellValue(r, c.key)}</span>
                     </td>
                   ))}
                 </tr>
