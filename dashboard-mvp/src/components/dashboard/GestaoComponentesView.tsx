@@ -39,6 +39,24 @@ function normalizeComponentKey(value: string | null | undefined) {
   return normalized.replace(/\d+/g, (digits) => String(Number.parseInt(digits, 10)));
 }
 
+/** Rótulo da planilha → descrição no modal («Consumo de saldo por componente»). Chaves alinhadas a `normalizeComponentKey`. */
+const DESCRICAO_CATEGORIA_COMPONENTE: ReadonlyArray<readonly [string, string]> = [
+  ["COMPONENTE 02", "ADAPTAÇÃO AS MUDANÇAS CLIMÁTICAS"],
+  ["COMPONENTE 03", "FORTALECIMENTO INSTITUCIONAL"],
+  ["COMPONENTE 04", "MONITORAMENTO, AVALIAÇÃO E AUDITORIA"],
+  ["ATIVIDADE 1", "MODERNIZAÇÃO E FORTALECIMENTO DO INTERPI"],
+  ["ATIVIDADE II", "REGULARIZAÇÃO FUNDIÁRIA NOS ASSENTAMENTOS DO INTERPI"],
+  ["ATIVIDADE III", "REGULARIZAÇÃO FUNDIÁRIA DOS TERRITÓRIOS DOS POVOS E COMUNIDADES TRADICIONAIS (PCTs)"],
+];
+
+const DESCRICAO_POR_COMPONENTE = new Map<string, string>(
+  DESCRICAO_CATEGORIA_COMPONENTE.map(([k, v]) => [normalizeComponentKey(k), v]),
+);
+
+function descricaoLegendaTermometro(componente: string): string | undefined {
+  return DESCRICAO_POR_COMPONENTE.get(normalizeComponentKey(componente));
+}
+
 function resolveThermometerColor(percentualUtilizado: number) {
   if (percentualUtilizado > 100) return "#991b1b";
   if (percentualUtilizado >= 85) return "#dc2626";
@@ -235,8 +253,18 @@ function ComponentesThermometerModal({
 
         <div className="bg-slate-50/50 px-5 py-5 dark:bg-slate-950/50">
           <div className="grid gap-5 md:grid-cols-3">
-            {items.map((item) => (
+            {items.map((item) => {
+              const legenda = descricaoLegendaTermometro(item.componente);
+              return (
               <div key={`${blocoTitulo}-${item.componente}`} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                {legenda ? (
+                  <p
+                    lang="pt-BR"
+                    className="mx-auto mb-3 w-full max-w-[15.5rem] text-center text-[8.5px] font-medium leading-snug tracking-tight text-slate-600 [overflow-wrap:anywhere] break-words dark:text-slate-400 sm:text-[9.5px]"
+                  >
+                    {legenda}
+                  </p>
+                ) : null}
                 <div className="flex justify-center">
                   <ThermometerCard
                     title={blocoTitulo}
@@ -250,7 +278,8 @@ function ComponentesThermometerModal({
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
