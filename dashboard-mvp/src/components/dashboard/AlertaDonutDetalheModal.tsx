@@ -153,7 +153,7 @@ function AlertaFatiaTabelaBloco({
           <p className="mb-2 text-[10px] text-slate-500 dark:text-slate-400">
             Arraste a borda direita das células do cabeçalho para redimensionar as colunas.
           </p>
-        <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
+        <div className="rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
           <table
             className="table-fixed border-collapse text-left text-[11px]"
             style={{ width: tableMinWidth, minWidth: tableMinWidth }}

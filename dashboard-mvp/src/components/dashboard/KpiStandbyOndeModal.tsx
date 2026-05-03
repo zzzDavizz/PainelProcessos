@@ -128,7 +128,7 @@ export function KpiStandbyOndeModal({ open, onClose, rows, chartDark = false }: 
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50 px-4 py-4 dark:bg-slate-950/50 sm:px-5 sm:py-5">
+        <div className="min-h-0 flex-1 overflow-auto bg-slate-50/50 px-4 py-4 dark:bg-slate-950/50 sm:px-5 sm:py-5">
           {chartData.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">Sem processos criados para exibir o ranking.</p>
           ) : (

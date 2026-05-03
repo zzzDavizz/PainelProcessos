@@ -136,7 +136,7 @@ function BlocoTable({
       <p className="mb-1.5 text-[10px] text-slate-500 dark:text-slate-400">
         Arraste a borda direita do cabeçalho para ajustar a largura das colunas.
       </p>
-      <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
         <table
           className="table-fixed border-collapse text-left text-[11px]"
           style={{ width: tableMinWidth, minWidth: tableMinWidth }}
@@ -262,7 +262,7 @@ export function KpiDetailModal({
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50 px-4 py-4 dark:bg-slate-950/50 sm:px-5 sm:py-5">
+        <div className="min-h-0 flex-1 overflow-auto bg-slate-50/50 px-4 py-4 dark:bg-slate-950/50 sm:px-5 sm:py-5">
           <BlocoTable title="PILARES" accent="#2563eb" rows={pilares} columns={columns} />
           <BlocoTable title="PSI" accent="#dc2626" rows={psi} columns={columns} />
         </div>

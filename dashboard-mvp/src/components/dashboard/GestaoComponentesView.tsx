@@ -328,7 +328,7 @@ function ComponenteTable({
             {title}
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-0 table-fixed text-xs sm:text-sm">
             <colgroup>
               <col style={{ width: "5%" }} />
