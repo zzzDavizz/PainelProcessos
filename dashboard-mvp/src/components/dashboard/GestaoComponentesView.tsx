@@ -251,9 +251,12 @@ function ComponenteTable({
   onThermometerClick: () => void;
   onCalendarClick: (title: string, componente: string, rows: ProcessoRow[]) => void;
 }) {
+  /** 5% + 11% + 7×12% = 100% — preenche a caixa sem “sobra” à direita da grelha. */
+  const moneyColPct = 84 / 7;
+
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px] xl:items-stretch">
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/25">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(170px,190px)] xl:items-stretch">
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/25">
         <div
           className="border-b px-4 py-3 dark:border-slate-700/80"
           style={{
@@ -266,18 +269,25 @@ function ComponenteTable({
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-0 table-fixed text-xs sm:text-sm">
+            <colgroup>
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "11%" }} />
+              {Array.from({ length: 7 }, (_, i) => (
+                <col key={`money-${i}`} style={{ width: `${moneyColPct}%` }} />
+              ))}
+            </colgroup>
             <thead style={{ backgroundColor: chartSafeColor(accentSoft) }}>
-              <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
-                <th className="px-4 py-3">Map. data alvo</th>
-                <th className="px-4 py-3">Componente</th>
-                <th className="px-4 py-3">Disponibilizado</th>
-                <th className="px-4 py-3">Contrapartida</th>
-                <th className="px-4 py-3">Dispon. total</th>
-                <th className="px-4 py-3">Comprometido</th>
-                <th className="px-4 py-3">JÁ executado</th>
-                <th className="px-4 py-3">Saldo real</th>
-                <th className="px-4 py-3">Saldo proj</th>
+              <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[11px] dark:text-slate-300">
+                <th className="px-2 py-2.5 sm:px-3 sm:py-3">Map. data alvo</th>
+                <th className="px-2 py-2.5 sm:px-3 sm:py-3">Componente</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Disponibilizado</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Contrapartida</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Dispon. total</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Comprometido</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">JÁ executado</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Saldo real</th>
+                <th className="px-2 py-2.5 text-right sm:px-3 sm:py-3">Saldo proj</th>
               </tr>
             </thead>
             <tbody>
@@ -290,7 +300,7 @@ function ComponenteTable({
                     key={`${title}-${row.componente}`}
                     className="border-t border-slate-200/70 text-slate-700 odd:bg-white even:bg-slate-50/60 dark:border-slate-700/70 dark:text-slate-200 dark:odd:bg-slate-900/70 dark:even:bg-slate-800/50"
                   >
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-2 py-2.5 align-top sm:px-3 sm:py-3">
                       <button
                         type="button"
                         onClick={() => onCalendarClick(title, row.componente, processosDoComponente)}
@@ -301,14 +311,30 @@ function ComponenteTable({
                         <CalendarDays className="h-4 w-4" aria-hidden />
                       </button>
                     </td>
-                    <td className="px-4 py-3 font-medium">{row.componente}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.disponibilizado ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.contrapartida ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.disponTotal ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.comprometido ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.jaExecutado ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.saldoReal ?? 0)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatBRL(row.saldoProj ?? 0)}</td>
+                    <td className="break-words px-2 py-2.5 font-medium sm:px-3 sm:py-3">
+                      {row.componente}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.disponibilizado ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.contrapartida ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.disponTotal ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.comprometido ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.jaExecutado ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.saldoReal ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums sm:px-3 sm:py-3">
+                      {formatBRL(row.saldoProj ?? 0)}
+                    </td>
                   </tr>
                 );
               })}
@@ -402,7 +428,7 @@ export default function GestaoComponentesView({ rows, processos, chartDark, data
 
   return (
     <div className={chartDark ? "dark" : undefined}>
-      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
+      <div className="w-full">
         <div className="mb-6 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
           <div className="min-w-0 text-sm text-slate-600 dark:text-slate-400">
             <span>{dataSourceLabel || "A carregar…"} · última leitura {timeStr}</span>

@@ -586,6 +586,12 @@ function StatusBars({
 const DFD_COLOR = "#7c3aed";
 const TRD_COLOR = "#0891b2";
 
+/** Uma casa decimal (pt-BR); evita somas com artefato de float no resumo Aderente. */
+function formatDfdTrdPct(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  return r.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 function DfdTrdBars({
   rows,
   chartDark = false,
@@ -599,8 +605,8 @@ function DfdTrdBars({
   const data: DfdTrdBarPoint[] = dfdTrdBars(rows);
   const displayData = data.map((row) => ({
     ...row,
-    dfdLabel: row.dfd > 0 || row.name === "Não Se Aplica" ? `${row.dfd}%` : "",
-    trdLabel: row.trd > 0 || row.name === "Não Se Aplica" ? `${row.trd}%` : "",
+    dfdLabel: row.dfd > 0 || row.name === "Não Se Aplica" ? `${formatDfdTrdPct(row.dfd)}%` : "",
+    trdLabel: row.trd > 0 || row.name === "Não Se Aplica" ? `${formatDfdTrdPct(row.trd)}%` : "",
   }));
 
   const bucketIncluso = data.find((row) => row.name === "Incluso");
@@ -699,11 +705,19 @@ function DfdTrdBars({
                 TDR
               </span>
               <span className="font-medium text-emerald-700 dark:text-emerald-300">Aderente</span>
-              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoAderenteDfd}%</span>
-              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoAderenteTrd}%</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">
+                {formatDfdTrdPct(resumoAderenteDfd)}%
+              </span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">
+                {formatDfdTrdPct(resumoAderenteTrd)}%
+              </span>
               <span className="font-medium text-rose-700 dark:text-rose-300">Não aderente</span>
-              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoNaoAderenteDfd}%</span>
-              <span className="tabular-nums text-slate-700 dark:text-slate-200">{resumoNaoAderenteTrd}%</span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">
+                {formatDfdTrdPct(resumoNaoAderenteDfd)}%
+              </span>
+              <span className="tabular-nums text-slate-700 dark:text-slate-200">
+                {formatDfdTrdPct(resumoNaoAderenteTrd)}%
+              </span>
             </div>
           </div>
           <div className="pointer-events-none absolute right-0 top-full mt-2 w-56 rounded-lg border border-slate-200/90 bg-white/95 px-3 py-2 text-[10px] leading-snug text-slate-600 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300">
@@ -754,7 +768,7 @@ function DfdTrdBars({
                             DFD
                           </span>
                           <span className="tabular-nums font-semibold text-slate-900 dark:text-white">
-                            {dPoint.value}%
+                            {formatDfdTrdPct(Number(dPoint.value))}%
                             <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
                               ({pt?.dfdCount ?? 0})
                             </span>
@@ -768,7 +782,7 @@ function DfdTrdBars({
                             TDR
                           </span>
                           <span className="tabular-nums font-semibold text-slate-900 dark:text-white">
-                            {tPoint.value}%
+                            {formatDfdTrdPct(Number(tPoint.value))}%
                             <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
                               ({(tPoint.payload as DfdTrdBarPoint).trdCount})
                             </span>
@@ -1717,7 +1731,11 @@ export default function DashboardView() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
+      <div
+        className={`mx-auto w-full px-4 py-8 sm:px-6 ${
+          activeTab === "gestao-componentes" ? "max-w-[min(100%,1536px)]" : "max-w-[1400px]"
+        }`}
+      >
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <button
             type="button"

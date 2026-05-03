@@ -949,8 +949,10 @@ export function rankingMelhorPerformanceComEnd(rows: ProcessoRow[]): RankingMelh
   return list;
 }
 
+/** Maiores `diasEmCurso`; exclui linhas com STATUS «Efetivado» ou «Efetivado/Recorrente». */
 export function topAtrasados(rows: ProcessoRow[], n = 5): ProcessoRow[] {
   return [...rows]
+    .filter(incluirNoRankingOnde)
     .filter((r) => r.diasEmCurso != null)
     .sort((a, b) => (b.diasEmCurso ?? 0) - (a.diasEmCurso ?? 0))
     .slice(0, n);
